@@ -1,0 +1,504 @@
+version: 1
+generated_at: "2026-08-14T07:16:18+00:00"
+profile: external_broad
+sources:
+  - id: cc-cedict
+    name: CC-CEDICT
+    download_url: https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz
+    homepage: https://www.mdbg.net/chinese/dictionary?page=cc-cedict
+    license: CC BY-SA 4.0
+    risk_level: medium
+    redistribution_class: copyleft_sharealike
+    attribution_required: true
+    raw_committed: false
+    notes: 'Core dictionary entries with word-level pinyin.'
+  - id: thuocl
+    name: THUOCL (Tsinghua Open Chinese Lexicon)
+    download_url: https://github.com/thunlp/THUOCL/archive/refs/heads/master.zip
+    homepage: https://github.com/thunlp/THUOCL
+    license: THUOCL custom open terms
+    risk_level: medium
+    redistribution_class: attribution_required
+    attribution_required: true
+    raw_committed: false
+    notes: 'Domain/common words with DF statistics, used for broad coverage.'
+  - id: opencc-stphrases
+    name: OpenCC STPhrases
+    download_url: https://raw.githubusercontent.com/BYVoid/OpenCC/master/data/dictionary/STPhrases.txt
+    homepage: https://github.com/BYVoid/OpenCC
+    license: Apache-2.0
+    risk_level: low
+    redistribution_class: permissive
+    attribution_required: true
+    raw_committed: false
+    notes: 'SC->TC phrase mapping for broad-profile TC expansion.'
+  - id: jieba-dict
+    name: jieba dict.txt
+    download_url: https://raw.githubusercontent.com/fxsjy/jieba/master/jieba/dict.txt
+    homepage: https://github.com/fxsjy/jieba
+    license: MIT
+    risk_level: low
+    redistribution_class: permissive
+    attribution_required: true
+    raw_committed: false
+    notes: 'Word-frequency dictionary used as ranking signal.'
+  - id: unicode-unihan-readings
+    name: Unicode Unihan_Readings
+    download_url: https://www.unicode.org/Public/UCD/latest/ucd/Unihan.zip
+    homepage: https://www.unicode.org/ucd/
+    license: Unicode-3.0
+    risk_level: low
+    redistribution_class: permissive
+    attribution_required: true
+    raw_committed: false
+    notes: 'Character-level Mandarin readings for pinyin fallback.'
+  - id: zhwiktionary-titles-ns0
+    name: Wiktionary zh titles (ns0)
+    download_url: https://dumps.wikimedia.org/zhwiktionary/latest/zhwiktionary-latest-all-titles-in-ns0.gz
+    homepage: https://dumps.wikimedia.org/zhwiktionary/latest/
+    license: CC BY-SA 4.0
+    risk_level: medium
+    redistribution_class: copyleft_sharealike
+    attribution_required: true
+    raw_committed: false
+    notes: 'Daily/colloquial lexical entries used as direct seed for modern chat phrasing.'
+  - id: project-curated-daily-phrases
+    name: Cassotis curated daily/chat phrases
+    download_url: repo://manifests/curated_daily_phrases.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained high-value daily/chat phrase whitelist for IME-friendly everyday input.'
+  - id: project-curated-daily-supplement-phrases
+    name: Cassotis low-frequency daily supplements
+    download_url: repo://manifests/curated_daily_supplement_phrases.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained exact-match supplements for useful but lower-frequency daily-adjacent terms; isolated from daily/chat preferred-term ranking.'
+  - id: zhwiki-titles-ns0
+    name: Wikipedia zh titles (ns0)
+    download_url: https://dumps.wikimedia.org/zhwiki/latest/zhwiki-latest-all-titles-in-ns0.gz
+    homepage: https://dumps.wikimedia.org/zhwiki/latest/
+    license: CC BY-SA 4.0
+    risk_level: medium
+    redistribution_class: copyleft_sharealike
+    attribution_required: true
+    raw_committed: false
+    notes: 'Used as broad coverage and ranking signal for common named terms.'
+  - id: wikimedia-pageviews-top
+    name: Wikimedia Pageviews Top (zh.wikipedia)
+    download_url: https://wikimedia.org/api/rest_v1/metrics/pageviews/top/zh.wikipedia/all-access
+    homepage: https://wikitech.wikimedia.org/wiki/Analytics/AQS/Pageviews
+    license: CC BY-SA 4.0
+    risk_level: medium
+    redistribution_class: copyleft_sharealike
+    attribution_required: true
+    raw_committed: false
+    notes: 'Monthly top pageviews are aggregated as real-world usage heat signal.'
+  - id: project-curated-fiction-entities
+    name: Cassotis curated fiction entities
+    download_url: repo://manifests/vertical/fiction_entities.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained fiction entity list for novel characters, titles, and in-world named entities, isolated from the daily/chat preferred-term path and from general proper nouns.'
+  - id: project-curated-proper-nouns
+    name: Cassotis curated proper nouns
+    download_url: repo://manifests/vertical/proper_nouns.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained general non-person proper nouns for titles, organizations, brands, platforms, products, and other real-world named entities that should not share the everyday/chat preferred-term path.'
+  - id: project-curated-vertical-people-names
+    name: Cassotis curated people names
+    download_url: repo://manifests/vertical/people_names.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained public and historical people names with explicit pinyin corrections, isolated from daily/chat phrase ranking.'
+  - id: project-curated-vertical-place-names
+    name: Cassotis curated place names
+    download_url: repo://manifests/vertical/place_names.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained place names with conservative ranking so complete pinyin matches remain inputable without crowding common everyday candidates.'
+  - id: project-curated-vertical-countries-regions
+    name: Cassotis curated countries and regions
+    download_url: repo://manifests/vertical/countries_regions.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained countries, territories, and broad regions with moderately conservative weights.'
+  - id: project-curated-vertical-world-cities
+    name: Cassotis curated world cities
+    download_url: repo://manifests/vertical/world_cities.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained high-value world city names kept in the place-name layer.'
+  - id: project-curated-vertical-landmarks
+    name: Cassotis curated landmarks
+    download_url: repo://manifests/vertical/landmarks.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained scenic spots and landmarks with conservative weights.'
+  - id: project-curated-vertical-idioms-allusions
+    name: Cassotis curated idioms and allusions
+    download_url: repo://manifests/vertical/idioms_allusions.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained high-value idioms and literary allusions kept separate from daily/chat phrase ranking.'
+  - id: project-curated-vertical-computing
+    name: Cassotis curated computing terms
+    download_url: repo://manifests/vertical/computing.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained computing/domain terminology layer isolated from daily/chat phrase ranking.'
+  - id: project-curated-vertical-civic
+    name: Cassotis curated civic terms
+    download_url: repo://manifests/vertical/civic.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained civic/public-service terminology layer for taxation, housing, household-registration, and related administrative vocabulary, isolated from daily/chat preferred-term ranking.'
+  - id: project-curated-vertical-architecture-terms
+    name: Cassotis curated architecture terms
+    download_url: repo://manifests/vertical/architecture_terms.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained architecture terminology supplement kept separate from the daily/chat preferred-term path.'
+  - id: project-curated-vertical-architecture-entities
+    name: Cassotis curated architecture entities
+    download_url: repo://manifests/vertical/architecture_entities.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained architecture entity supplement for architects, landmark buildings, and other high-value architecture-specific names.'
+  - id: project-curated-vertical-gaming
+    name: Cassotis curated gaming terms
+    download_url: repo://manifests/vertical/gaming.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained gaming terminology supplement for high-value game-related wording that should stay isolated from daily/chat preferred-term ranking.'
+  - id: project-curated-vertical-game-dev
+    name: Cassotis curated game development terms
+    download_url: repo://manifests/vertical/game_dev.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained game-development terminology supplement kept separate from the daily/chat preferred-term path.'
+  - id: project-curated-vertical-medicine
+    name: Cassotis curated medical terms
+    download_url: repo://manifests/vertical/medicine.tsv
+    homepage: https://github.com/shenmin/cassotis-lexicon
+    license: Repository license (project-authored)
+    risk_level: low
+    redistribution_class: project_authored
+    attribution_required: false
+    raw_committed: true
+    notes: 'Project-maintained medical supplement for high-value terms and explicit pinyin corrections that should stay isolated from daily/chat preferred-term ranking.'
+  - id: wikidata-historical-people-zh
+    name: Wikidata zh historical people
+    download_url: https://query.wikidata.org/sparql
+    homepage: https://www.wikidata.org/wiki/Wikidata:Main_Page
+    license: CC0-1.0
+    risk_level: low
+    redistribution_class: public_domain
+    attribution_required: false
+    raw_committed: false
+    notes: 'Chinese labels for historical/deceased people with zh-wiki coverage and broad Wikidata sitelink support, imported conservatively as an isolated people-name supplement.'
+  - id: wikidata-countries-zh
+    name: Wikidata zh countries
+    download_url: https://query.wikidata.org/sparql
+    homepage: https://www.wikidata.org/wiki/Wikidata:Main_Page
+    license: CC0-1.0
+    risk_level: low
+    redistribution_class: public_domain
+    attribution_required: false
+    raw_committed: false
+    notes: 'Chinese labels and aliases for countries from Wikidata Query Service.'
+  - id: wikidata-major-cities-zh
+    name: Wikidata zh major cities
+    download_url: https://query.wikidata.org/sparql
+    homepage: https://www.wikidata.org/wiki/Wikidata:Main_Page
+    license: CC0-1.0
+    risk_level: low
+    redistribution_class: public_domain
+    attribution_required: false
+    raw_committed: false
+    notes: 'Chinese labels for major cities from Wikidata, imported with lower weights than curated city seeds.'
+  - id: wikidata-admin-territories-zh
+    name: Wikidata zh administrative territories
+    download_url: https://query.wikidata.org/sparql
+    homepage: https://www.wikidata.org/wiki/Wikidata:Main_Page
+    license: CC0-1.0
+    risk_level: low
+    redistribution_class: public_domain
+    attribution_required: false
+    raw_committed: false
+    notes: 'Chinese labels for administrative territories with zh-wiki coverage, imported at low weight to avoid crowding everyday candidates.'
+  - id: wikidata-tourist-landmarks-zh
+    name: Wikidata zh tourist attractions and landmarks
+    download_url: https://query.wikidata.org/sparql
+    homepage: https://www.wikidata.org/wiki/Wikidata:Main_Page
+    license: CC0-1.0
+    risk_level: low
+    redistribution_class: public_domain
+    attribution_required: false
+    raw_committed: false
+    notes: 'Chinese labels for tourist attractions and architectural landmarks, imported at low weight so cold buildings and facilities remain available without dominating.'
+  - id: thuocl-chengyu-vertical
+    name: THUOCL chengyu subset
+    download_url: https://github.com/thunlp/THUOCL/archive/refs/heads/master.zip#THUOCL_chengyu.txt
+    homepage: https://github.com/thunlp/THUOCL
+    license: THUOCL custom open terms
+    risk_level: medium
+    redistribution_class: attribution_required
+    attribution_required: true
+    raw_committed: false
+    notes: 'THUOCL chengyu subset used as a conservative idiom/allusion candidate source.'
+  - id: thuocl-it-vertical
+    name: THUOCL IT subset
+    download_url: https://github.com/thunlp/THUOCL/archive/refs/heads/master.zip#THUOCL_IT.txt
+    homepage: https://github.com/thunlp/THUOCL
+    license: THUOCL custom open terms
+    risk_level: medium
+    redistribution_class: attribution_required
+    attribution_required: true
+    raw_committed: false
+    notes: 'THUOCL IT subset used as a computing/domain terminology candidate layer.'
+  - id: getty-aat-architectural-elements-zh
+    name: Getty AAT zh architectural elements
+    download_url: https://vocab.getty.edu/sparql.json
+    homepage: https://www.getty.edu/research/tools/vocabularies/aat/
+    license: ODC-By 1.0
+    risk_level: low
+    redistribution_class: attribution_required
+    attribution_required: true
+    raw_committed: false
+    notes: 'Chinese Getty AAT architectural-element terms queried from the official Getty SPARQL endpoint.'
+  - id: getty-aat-rooms-spaces-zh
+    name: Getty AAT zh rooms and spaces
+    download_url: https://vocab.getty.edu/sparql.json
+    homepage: https://www.getty.edu/research/tools/vocabularies/aat/
+    license: ODC-By 1.0
+    risk_level: low
+    redistribution_class: attribution_required
+    attribution_required: true
+    raw_committed: false
+    notes: 'Chinese Getty AAT rooms-and-spaces terms queried from the official Getty SPARQL endpoint.'
+  - id: wikidata-architectural-elements-zh
+    name: Wikidata zh architectural elements
+    download_url: https://query.wikidata.org/sparql
+    homepage: https://www.wikidata.org/wiki/Wikidata:Main_Page
+    license: CC0-1.0
+    risk_level: low
+    redistribution_class: public_domain
+    attribution_required: false
+    raw_committed: false
+    notes: 'Chinese labels and aliases for architectural-element subclasses from Wikidata Query Service.'
+  - id: wikidata-architectural-styles-zh
+    name: Wikidata zh architectural styles
+    download_url: https://query.wikidata.org/sparql
+    homepage: https://www.wikidata.org/wiki/Wikidata:Main_Page
+    license: CC0-1.0
+    risk_level: low
+    redistribution_class: public_domain
+    attribution_required: false
+    raw_committed: false
+    notes: 'Chinese labels and aliases for architectural styles from Wikidata Query Service.'
+  - id: wikidata-architectural-landmarks-zh
+    name: Wikidata zh architectural landmarks
+    download_url: https://query.wikidata.org/sparql
+    homepage: https://www.wikidata.org/wiki/Wikidata:Main_Page
+    license: CC0-1.0
+    risk_level: low
+    redistribution_class: public_domain
+    attribution_required: false
+    raw_committed: false
+    notes: 'Chinese labels and aliases for architectural landmarks from Wikidata Query Service, imported conservatively as an isolated entity layer.'
+  - id: wikidata-video-games-zh
+    name: Wikidata zh video games
+    download_url: https://query.wikidata.org/sparql
+    homepage: https://www.wikidata.org/wiki/Wikidata:Main_Page
+    license: CC0-1.0
+    risk_level: low
+    redistribution_class: public_domain
+    attribution_required: false
+    raw_committed: false
+    notes: 'Chinese labels and aliases for video-game items from Wikidata Query Service, used as the main gaming-title/entity source.'
+  - id: wikidata-video-game-series-zh
+    name: Wikidata zh video game series
+    download_url: https://query.wikidata.org/sparql
+    homepage: https://www.wikidata.org/wiki/Wikidata:Main_Page
+    license: CC0-1.0
+    risk_level: low
+    redistribution_class: public_domain
+    attribution_required: false
+    raw_committed: false
+    notes: 'Chinese labels and aliases for video-game series from Wikidata Query Service.'
+  - id: wikidata-video-game-genres-zh
+    name: Wikidata zh video game genres
+    download_url: https://query.wikidata.org/sparql
+    homepage: https://www.wikidata.org/wiki/Wikidata:Main_Page
+    license: CC0-1.0
+    risk_level: low
+    redistribution_class: public_domain
+    attribution_required: false
+    raw_committed: false
+    notes: 'Chinese labels and aliases for video-game genres from Wikidata Query Service.'
+  - id: wikidata-game-consoles-zh
+    name: Wikidata zh game consoles
+    download_url: https://query.wikidata.org/sparql
+    homepage: https://www.wikidata.org/wiki/Wikidata:Main_Page
+    license: CC0-1.0
+    risk_level: low
+    redistribution_class: public_domain
+    attribution_required: false
+    raw_committed: false
+    notes: 'Chinese labels and aliases for game consoles from Wikidata Query Service.'
+  - id: zhwiktionary-gaming-lexical
+    name: Wiktionary zh gaming lexical titles
+    download_url: https://dumps.wikimedia.org/zhwiktionary/latest/zhwiktionary-latest-all-titles-in-ns0.gz
+    homepage: https://dumps.wikimedia.org/zhwiktionary/latest/
+    license: CC BY-SA 4.0
+    risk_level: medium
+    redistribution_class: copyleft_sharealike
+    attribution_required: true
+    raw_committed: false
+    notes: 'Filtered Chinese Wiktionary titles that match gaming lexical heuristics, used as a lightweight gaming-lexicon supplement.'
+  - id: zhwiki-gaming-lexical
+    name: Wikipedia zh gaming lexical titles
+    download_url: https://dumps.wikimedia.org/zhwiki/latest/zhwiki-latest-all-titles-in-ns0.gz
+    homepage: https://dumps.wikimedia.org/zhwiki/latest/
+    license: CC BY-SA 4.0
+    risk_level: medium
+    redistribution_class: copyleft_sharealike
+    attribution_required: true
+    raw_committed: false
+    notes: 'Filtered Chinese Wikipedia titles that match gaming lexical heuristics, used as a conservative gaming-lexicon supplement.'
+  - id: godot-zh-searchindex-titles
+    name: Godot Docs zh-cn title index
+    download_url: https://docs.godotengine.org/zh-cn/stable/searchindex.js
+    homepage: https://docs.godotengine.org/zh-cn/stable/
+    license: CC BY 3.0
+    risk_level: low
+    redistribution_class: attribution_required
+    attribution_required: true
+    raw_committed: false
+    notes: 'Filtered Chinese Godot documentation titles used as the main game-development terminology source.'
+  - id: wikidata-game-engines-zh
+    name: Wikidata zh game engines
+    download_url: https://query.wikidata.org/sparql
+    homepage: https://www.wikidata.org/wiki/Wikidata:Main_Page
+    license: CC0-1.0
+    risk_level: low
+    redistribution_class: public_domain
+    attribution_required: false
+    raw_committed: false
+    notes: 'Chinese labels and aliases for game engines from Wikidata Query Service.'
+  - id: zhwiktionary-game-dev-lexical
+    name: Wiktionary zh game-development lexical titles
+    download_url: https://dumps.wikimedia.org/zhwiktionary/latest/zhwiktionary-latest-all-titles-in-ns0.gz
+    homepage: https://dumps.wikimedia.org/zhwiktionary/latest/
+    license: CC BY-SA 4.0
+    risk_level: medium
+    redistribution_class: copyleft_sharealike
+    attribution_required: true
+    raw_committed: false
+    notes: 'Filtered Chinese Wiktionary titles that match game-development lexical heuristics.'
+  - id: zhwiki-game-dev-lexical
+    name: Wikipedia zh game-development lexical titles
+    download_url: https://dumps.wikimedia.org/zhwiki/latest/zhwiki-latest-all-titles-in-ns0.gz
+    homepage: https://dumps.wikimedia.org/zhwiki/latest/
+    license: CC BY-SA 4.0
+    risk_level: medium
+    redistribution_class: copyleft_sharealike
+    attribution_required: true
+    raw_committed: false
+    notes: 'Filtered Chinese Wikipedia titles that match game-development lexical heuristics.'
+  - id: mesh-descriptor-catalog
+    name: MeSH descriptor catalog
+    download_url: https://nlmpubs.nlm.nih.gov/projects/mesh/MESH_FILES/xmlmesh/desc2026.xml
+    homepage: https://www.nlm.nih.gov/mesh/meshhome.html
+    license: NLM MeSH terms and conditions
+    risk_level: low
+    redistribution_class: attribution_required
+    attribution_required: true
+    raw_committed: false
+    notes: 'Official MeSH descriptor catalog used as the medical concept whitelist for vertical medical import.'
+  - id: wikidata-medical-mesh-zh
+    name: Wikidata zh medical entities (MeSH-linked)
+    download_url: https://query.wikidata.org/sparql
+    homepage: https://www.wikidata.org/wiki/Wikidata:Main_Page
+    license: CC0-1.0
+    risk_level: low
+    redistribution_class: public_domain
+    attribution_required: false
+    raw_committed: false
+    notes: 'Chinese medical labels and aliases from Wikidata Query Service, kept only when the linked MeSH descriptor stays inside medical MeSH tree categories.'
+  - id: thuocl-medical-vertical
+    name: THUOCL medical subset
+    download_url: https://github.com/thunlp/THUOCL/archive/refs/heads/master.zip#THUOCL_medical.txt
+    homepage: https://github.com/thunlp/THUOCL
+    license: THUOCL custom open terms
+    risk_level: medium
+    redistribution_class: attribution_required
+    attribution_required: true
+    raw_committed: false
+    notes: 'Medical-domain candidate layer from THUOCL, kept separate from daily/chat phrase ranking and weighted more conservatively than the MeSH-validated medical entities.'

@@ -1,0 +1,9 @@
+*.sh text eol=lf
+*.command text eol=lf
+*.bin binary
+*.onnx binary
+*.dylib binary
+*.png binary
+*.pdf binary
+# Preserve reviewed model bytes, including CRLF line endings.
+/data/models/local_repair/*.json -text whitespace=cr-at-eol
