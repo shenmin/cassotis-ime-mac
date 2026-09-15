@@ -11,3 +11,4 @@
 - Use the color logo in the input menu and link About and Settings to the macOS website.
 - Handle Chinese punctuation, cold-start keystrokes, focus changes, secure fields and recovery from helper failures.
 - Provide build, rebuild and packaging scripts, plus a native graphical installer that preserves user settings and learning data.
+- Keep source distributions focused on runtime and build components, validate assets with standalone checksums, and use configurable compiler and lexicon locations.

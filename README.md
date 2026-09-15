@@ -16,7 +16,7 @@ Version **0.1.0** (build **1**) targets Apple Silicon. The deployment target is 
 - Simplified and traditional Chinese dictionaries, fuzzy Pinyin, partial candidate selection, long-sentence ranking, and local sentence repair.
 - A fixed two-row candidate window: up to nine candidates on the first row, an always-present Tab completion row, and the logo and version at the bottom right. Learned words can be deleted using the small red × beside them.
 - A native candidate window and settings interface, a single horizontal candidate row without wrapping, a default font size of 14 points, eight color options, and a live preview. The candidate window keeps focus in the application receiving input.
-- A brief animated bubble beside the caret shows “中” (Chinese) or “英” (English) when changing modes or switching from another input method to Cassotis. It dismisses when typing starts.
+- A brief animated bubble beside the caret shows the Cassotis logo beside “中” (Chinese) or “英” (English), avoids nearby system cursor indicators, and appears when changing modes or switching from another input method to Cassotis. It dismisses when typing starts.
 - Settings categories in a sidebar, font-name completion, and direct key recording for five configurable shortcuts. Confirmed choices save automatically; macOS system shortcuts and secure password fields retain their normal behavior.
 - All inference runs locally on the CPU through ONNX Runtime. The installed input method needs no compiler, Python installation, or online service.
 
