@@ -1,29 +1,33 @@
 # Cassotis IME - 言泉输入法
 
-言泉输入法的 macOS 版，基于 Windows / Linux 版与 Cassotis Lexicon。
+English | [简体中文](README.zh-Hans.md) | [繁體中文](README.zh-Hant.md)
 
-[官网](https://www.yanquan.org/mac) · [下载安装包](https://github.com/shenmin/cassotis-ime-mac/releases) · [Windows](https://github.com/shenmin/cassotis-ime) · [Linux](https://github.com/shenmin/cassotis-ime-linux)
+Cassotis IME for macOS builds on the Windows and Linux versions and Cassotis Lexicon.
 
-原生 macOS 拼音输入法，使用 **InputMethodKit / AppKit 前端与 Free Pascal 独立引擎**。共享生产引擎对齐 Windows 1.25.0 / Linux 0.7.0，使用 Lexicon 1.25.0 词库和相同的本地模型。
+[Website](https://www.yanquan.org/mac) · [Downloads](https://github.com/shenmin/cassotis-ime-mac/releases) · [Windows](https://github.com/shenmin/cassotis-ime) · [Linux](https://github.com/shenmin/cassotis-ime-linux)
 
-版本 **0.1.0**（build **1**），面向 Apple Silicon。部署目标 macOS 14+，本轮实测为 M2 Pro / macOS 26.6.2；其他系统和架构的资格范围见 [COMPATIBILITY.md](COMPATIBILITY.md)。
+A native Chinese Pinyin input method for macOS, with an **InputMethodKit / AppKit frontend and a separate Free Pascal engine process**. The shared production engine follows Windows 1.25.0 / Linux 0.7.0 and uses the Lexicon 1.25.0 dictionaries and the same local models.
 
-- 全拼、简拼、微软 / 小鹤 / 自然码 / 搜狗 / 紫光 / 拼音加加双拼。
-- 简体与繁体词库，模糊音、分段选词、长句排序与本地修正。
-- 固定两行候选窗：首行最多九项、始终保留 Tab 补全行，右下显示 logo 和版本；用户词可点小红 × 删除。
-- 原生候选窗与设置，横排不换行、默认 14 点字号、八个配色选项和实时预览；候选窗不抢输入焦点。
-- 左侧分类设置、字体名称补全和直接按键录制的五项快捷键；确定选项后自动保存，保留 macOS 系统组合键和安全密码框行为。
-- 所有推理在本机完成，使用 CPU ONNX Runtime；已安装的输入法无需编译器、Python 或联网服务。
+Version **0.1.0** (build **1**) targets Apple Silicon. The deployment target is macOS 14+; release validation was performed on an M2 Pro running macOS 26.6.2. See [COMPATIBILITY.md](COMPATIBILITY.md) for the validation status of other systems and architectures.
 
-## 安装与试用
+## Features
 
-普通用户下载 DMG，双击其中的“安装言泉输入法”，点击“安装”。完成后点击“打开键盘设置”，在“文字输入 → 编辑 → + → 中文（简体）”中添加言泉输入法，再从菜单栏的输入菜单选用。已添加过的输入源可直接选用；选中时显示彩色言泉 logo。输入 `nihao` 后按空格，可试打“你好”。
+- Full Pinyin, initial-letter abbreviations, and six Double Pinyin schemes: Microsoft, Xiaohe, Ziranma, Sogou, Ziguang, and Pinyin Jiajia.
+- Simplified and traditional Chinese dictionaries, fuzzy Pinyin, partial candidate selection, long-sentence ranking, and local sentence repair.
+- A fixed two-row candidate window: up to nine candidates on the first row, an always-present Tab completion row, and the logo and version at the bottom right. Learned words can be deleted using the small red × beside them.
+- A native candidate window and settings interface, a single horizontal candidate row without wrapping, a default font size of 14 points, eight color options, and a live preview. The candidate window keeps focus in the application receiving input.
+- Settings categories in a sidebar, font-name completion, and direct key recording for five configurable shortcuts. Confirmed choices save automatically; macOS system shortcuts and secure password fields retain their normal behavior.
+- All inference runs locally on the CPU through ONNX Runtime. The installed input method needs no compiler, Python installation, or online service.
 
-图形安装程序显示安装进度，升级保留设置和学习记录，失败时提供日志与重试。使用无需终端、编译器、Python 或另外下载模型。文件名带 `-local` 的包为本机临时签名，带 `-signed` 的包为 Developer ID 签名；这两种测试包均未经过 Apple 公证。卸载入口也在安装程序中；先通过系统设置移除输入源。
+## Install and Try
 
-## 构建与安装
+Download the DMG, open it, double-click **安装言泉输入法** (Install Cassotis IME), and click **安装** (Install). When installation finishes, click **打开键盘设置** (Open Keyboard Settings). In System Settings, go to **Keyboard → Text Input → Edit → + → Chinese, Simplified** and add **言泉输入法**. Select it from the input menu in the menu bar. If the input source is already added, select it directly; the menu displays the color Cassotis logo when it is active. Type `nihao` and press Space to enter “你好”.
 
-开发需要 **Free Pascal 3.2.2、Xcode 命令行工具、Python 3.11+**，不依赖 Lazarus/LCL。准备 [Cassotis Lexicon v1.25.0](https://github.com/shenmin/cassotis-lexicon/tree/v1.25.0) 的生成资产，将 `CASSOTIS_LEXICON_ROOT` 指向自己的词库目录（`/path/to/...` 为占位路径）：
+The graphical installer shows progress, preserves settings and learned words during upgrades, and provides logs and a retry option if installation fails. Using the installed input method requires no Terminal commands, compiler, Python installation, or separate model downloads. Packages ending in `-local` use a local ad hoc signature; packages ending in `-signed` use a Developer ID signature. Neither type of test package has been notarized by Apple. The installer also provides an uninstall option; remove the input source in System Settings first.
+
+## Build and Install
+
+Development requires **Free Pascal 3.2.2, Xcode command-line tools, and Python 3.11+**. Lazarus/LCL is not required. Obtain the generated assets from [Cassotis Lexicon v1.25.0](https://github.com/shenmin/cassotis-lexicon/tree/v1.25.0) and point `CASSOTIS_LEXICON_ROOT` to your checkout (`/path/to/...` is a placeholder):
 
 ```sh
 export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
@@ -31,18 +35,18 @@ export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
 ./install.sh
 ```
 
-应用输出到 `build/arm64/Cassotis.app`，安装到 `~/Library/Input Methods/Cassotis.app`。从系统设置 → 键盘 → 文本输入添加言泉输入法，再通过输入菜单启用。若系统列表未刷新，可退出登录后重新登录。
+The application is built at `build/arm64/Cassotis.app` and installed to `~/Library/Input Methods/Cassotis.app`. Add 言泉输入法 under System Settings → Keyboard → Text Input, then select it from the input menu. If the input-source list does not refresh, log out and log back in.
 
-默认 Shift 切换中英文，Space 或数字选择候选，Tab 接受补全，Ctrl+Shift+F10 打开设置。完整按键和数据位置见 [CONFIGURATION.md](CONFIGURATION.md)。
+By default, Shift switches between Chinese and English input, Space or a number selects a candidate, Tab accepts a completion, and Ctrl+Shift+F10 opens settings. See [CONFIGURATION.md](CONFIGURATION.md) for the full key bindings and data locations.
 
-`./rebuild_all.sh` 清理构建输出并完整重建；`./uninstall.sh` 卸载当前用户的输入源并保留学习记录。构建环境、模型下载和词库导入说明见 [BUILD.md](BUILD.md)。默认构建为本机临时签名，打包与签名方法也见构建文档。
+`./rebuild_all.sh` cleans the build output and performs a complete rebuild. `./uninstall.sh` removes the current user's input method while preserving learned words. See [BUILD.md](BUILD.md) for build prerequisites, model downloads, dictionary imports, packaging, and signing. Builds use a local ad hoc signature by default.
 
-## 验证与基准
+## Validation and Benchmarks
 
-发行验证覆盖核心输入行为、模型运行、词库导入、IPC、组合输入、故障恢复与设置保存，并验证原生文本控件、WebKit、Chrome、Electron 和 Terminal 中的实际输入。
+Release validation covers core behavior, model execution, dictionary imports, IPC, composition, recovery and settings persistence, along with real input in native text controls, WebKit, Chrome, Electron and Terminal.
 
-完整基准已通过全部固定门槛。长句 Top1 / Top2 为 11,695 / 12,835，与 Windows 1.25.0 分别相差 −3 / +5；两套短词排名和短词补全签名完全对齐。长句补全在生产 50 ms 与无补全时限下均为 413 次命中、952 个净节键，与 Windows 准确率对照相差 7 键。长句查询平均 / P95 为 78.984 / 151 ms，有上下文短词为 7.606 / 18 ms。完整协议、各平台对照及性能范围见 [BENCHMARK.md](BENCHMARK.md)。源码分发包含运行组件和构建工具；测试程序、桌面自动化、基准工具、语料和逐例诊断不随源码分发。
+The full benchmark passed all fixed acceptance thresholds. Long-sentence Top1 / Top2 counts are 11,695 / 12,835, differing from Windows 1.25.0 by −3 / +5. Both short-word ranking suites and the short-word completion signatures match exactly. Long-sentence completion records 413 hits and 952 net keystrokes saved with both the production 50 ms completion budget and no completion time limit, differing from the Windows accuracy reference by 7 keystrokes. Long-sentence query mean / P95 latency is 78.984 / 151 ms; context-aware short-word latency is 7.606 / 18 ms. See [BENCHMARK.md](BENCHMARK.md) for the full protocols, platform comparisons, and performance scope. The source distribution contains the runtime and build tools. Test programs, desktop automation, benchmark tools, corpora, and per-case diagnostics are not included.
 
-## 源码与许可
+## Source and License
 
-`src/macos` 是原生前端，`src/service` / `src/ipc` 提供进程协议，`src/engine` / `src/dictionary` 为共享生产核心，`src/host` 是本地模型宿主。模块说明见 [架构文档](docs/ARCHITECTURE.md)。模型/schema 校验值和词库输入哈希分别在 `data/runtime-assets.sha256` 与 `data/lexicon-inputs.json`，许可证与来源见 [NOTICE.md](NOTICE.md)。应用代码使用 GPL-3.0，词库使用上游声明的 CC BY-SA 4.0。
+`src/macos` contains the native frontend, `src/service` / `src/ipc` implement the process protocol, `src/engine` / `src/dictionary` contain the shared production core, and `src/host` hosts the local models. See the [architecture document](docs/ARCHITECTURE.md) for module details. Model/schema checksums and lexicon input hashes are in `data/runtime-assets.sha256` and `data/lexicon-inputs.json`; licenses and provenance are described in [NOTICE.md](NOTICE.md). Application code is licensed under GPL-3.0, and the dictionaries use the upstream CC BY-SA 4.0 license.
