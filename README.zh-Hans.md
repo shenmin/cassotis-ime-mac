@@ -6,7 +6,7 @@
 
 [官网](https://www.yanquan.org/mac) · [下载安装包](https://github.com/shenmin/cassotis-ime-mac/releases) · [Windows](https://github.com/shenmin/cassotis-ime) · [Linux](https://github.com/shenmin/cassotis-ime-linux)
 
-原生 macOS 拼音输入法，使用 **InputMethodKit / AppKit 前端与 Free Pascal 独立引擎**。共享生产引擎对齐 Windows 1.25.0 / Linux 0.7.0，使用 Lexicon 1.25.0 词库和相同的本地模型。
+原生 macOS 拼音输入法，使用 **InputMethodKit / AppKit 前端与 Free Pascal 独立引擎**。共享生产引擎对齐 Windows 1.25.0，使用 Lexicon 1.25.0 词库和相同的本地模型。后续更新以 Windows 版为基准。
 
 版本 **0.1.0**（build **1**），面向 Apple Silicon。部署目标 macOS 14+，本轮实测为 M2 Pro / macOS 26.6.2；其他系统和架构的资格范围见 [COMPATIBILITY.md](COMPATIBILITY.md)。
 

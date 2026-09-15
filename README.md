@@ -6,7 +6,7 @@ Cassotis IME for macOS builds on the Windows and Linux versions and Cassotis Lex
 
 [Website](https://www.yanquan.org/mac) · [Downloads](https://github.com/shenmin/cassotis-ime-mac/releases) · [Windows](https://github.com/shenmin/cassotis-ime) · [Linux](https://github.com/shenmin/cassotis-ime-linux)
 
-A native Chinese Pinyin input method for macOS, with an **InputMethodKit / AppKit frontend and a separate Free Pascal engine process**. The shared production engine follows Windows 1.25.0 / Linux 0.7.0 and uses the Lexicon 1.25.0 dictionaries and the same local models.
+A native Chinese Pinyin input method for macOS, with an **InputMethodKit / AppKit frontend and a separate Free Pascal engine process**. The shared production engine follows Windows 1.25.0 and uses the Lexicon 1.25.0 dictionaries and the same local models. Future updates use the Windows version as their baseline.
 
 Version **0.1.0** (build **1**) targets Apple Silicon. The deployment target is macOS 14+; release validation was performed on an M2 Pro running macOS 26.6.2. See [COMPATIBILITY.md](COMPATIBILITY.md) for the validation status of other systems and architectures.
 
