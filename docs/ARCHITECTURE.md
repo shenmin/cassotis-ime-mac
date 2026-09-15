@@ -24,6 +24,7 @@ flowchart LR
 | `src/macos/InputSession.mm` | 系统事件、组合/提交、上下文、恢复与 helper 管理 |
 | `src/macos/EngineClient.*` | 固定宽度二进制 codec、严格 UTF-8、请求和 generation 验证 |
 | `src/macos/CandidatePanel.mm` | 非激活候选窗、补全行、分页、点击和用户词删除 |
+| `src/macos/InputModePanel.mm` | 光标旁的中英文状态气泡、动画、自动收起及安全输入保护 |
 | `src/macos/SettingsController.mm` | 行为设置、快捷键校验与原生显示偏好 |
 | `src/service` / `src/ipc` | socket、连接上下文映射、dispatcher 和生产服务 |
 | `src/engine` / `src/dictionary` | Windows/Linux 生产算法、生成模型、SQLite 和学习 |
@@ -43,6 +44,8 @@ flowchart LR
 候选窗通过 `attributesForCharacterIndex:0 lineHeightRectangle:` 查询组合串起点；该索引相对于当前 inline session，不能使用文档绝对 `selectedRange.location`。返回的行矩形采用 AppKit 全局屏幕坐标，允许零宽光标，按锚点所属屏幕的 `visibleFrame` 放置。下方空间不足时从整行上方留出 8 点间距，右侧空间不足时向左收进屏幕。候选和补全固定为两行，按字体度量预留高度，补全内容变化不改变高度。空矩形及非有限坐标不会覆盖原有备用位置。
 
 候选视图保留原始 comment 给引擎校验和分段提交，显示时按 Windows 规则隐藏纯 ASCII 拼音后缀。首行最多九项，按自然宽度和剩余空间分配宽度，过长内容省略。小红 × 独立命中，视觉为 10 点、点击宽度为 22 点；第二行常驻补全和品牌区。
+
+状态气泡与候选窗共用光标查询和屏幕边界定位。没有组合串时，IMK 的索引 0 表示当前选区位置。气泡为 46 点的非激活、鼠标穿透面板，使用候选配色，显示引擎确认的“中”或“英”。激活时复用已有状态读取；只有配置的模式键额外读取切换后状态，普通输入不增加 RPC。光标尚未就绪时最多重试 0.4 秒；开始输入、出现组合串、切离或恢复连接均取消提示。Core Animation 实现淡入及轻微缩放，0.85 秒后淡出，开启减少动态效果时不缩放；定时器使用弱引用和代次检查，快速切换不会被旧定时器提前隐藏。安全输入、无效或屏外光标不显示气泡，也不退回鼠标位置。
 
 设置使用原生 NSComboBox 数据源完成字体前缀定位与补全，确认时规范化字体名称，无效值回退。确认控件调用统一验证及持久化路径，失败恢复上次保存状态并内联显示原因；未完成的字体输入只更新预览，关闭不弹出保存对话框。
 

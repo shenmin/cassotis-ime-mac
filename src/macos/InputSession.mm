@@ -129,6 +129,10 @@ uint16_t CassotisShortcutKey(const cassotis::Key &k) {
     std::unique_ptr<cassotis::EngineClient> _engine;
     cassotis::Result _result;
     CassotisCandidatePanel *_panel;
+    CassotisInputModePanel *_modePanel;
+    BOOL _modeKnown, _modeFeedbackPending;
+    uint8_t _inputMode;
+    NSTimeInterval _modeFeedbackDeadline;
     NSTimer *_timer;
     BOOL _active, _committing, _settingsGesture;
     NSUInteger _modifiers;
@@ -141,27 +145,61 @@ uint16_t CassotisShortcutKey(const cassotis::Key &k) {
 - (instancetype)init {
     self=[super init]; if(self) {
         _engine=std::make_unique<cassotis::EngineClient>(); _panel=[[CassotisCandidatePanel alloc] init];
+        _modePanel=[[CassotisInputModePanel alloc] init];
         __weak CassotisInputSession *weak=self;
         _panel.selection=^(NSInteger index){ [weak selectCandidate:index]; };
         _panel.deletion=^(NSInteger index){ [weak deleteCandidate:index]; };
     } return self;
 }
-- (void)dealloc { [_timer invalidate]; [_panel orderOut:nil]; }
+- (void)dealloc { [_timer invalidate]; [_panel orderOut:nil]; [_modePanel dismiss]; }
 - (CassotisCandidatePanel *)panel { return _panel; }
+- (CassotisInputModePanel *)modePanel { return _modePanel; }
 - (NSString *)preedit { return str(_result.preedit); }
+- (void)cancelModeFeedback {
+    if(_modeFeedbackPending || _modePanel.visible) [_modePanel dismiss];
+    _modeFeedbackPending=NO;
+}
+- (void)presentModeFeedback {
+    if(!_modeFeedbackPending || !_modeKnown || !_active) return;
+    if(!_result.preedit.empty() || NSProcessInfo.processInfo.systemUptime>_modeFeedbackDeadline) {
+        [self cancelModeFeedback]; return;
+    }
+    id client=self.client;
+    BOOL shown=[_modePanel showMode:_inputMode client:client];
+    if(!shown) return;
+    if(!_modeFeedbackPending || !_active || self.client!=client || !_result.preedit.empty()) {
+        [_modePanel dismiss]; return;
+    }
+    _modeFeedbackPending=NO;
+}
+- (void)showInputMode:(uint8_t)mode {
+    if(!_active) return;
+    _inputMode=mode; _modeKnown=YES; _modeFeedbackPending=YES;
+    _modeFeedbackDeadline=NSProcessInfo.processInfo.systemUptime+0.4;
+    [self presentModeFeedback];
+}
 - (BOOL)ensureReady {
     if(_engine->connected()) return YES;
     if(!_engine->connect(utf8(CassotisSocketPath()))) { CassotisStartEngine(); return NO; }
-    try { _engine->active(true); _panel.completionKey=_engine->state().completionKey; return YES; }
+    try {
+        _engine->active(true);
+        auto state=_engine->state(); _panel.completionKey=state.completionKey;
+        _inputMode=state.mode; _modeKnown=YES;
+        _modeFeedbackDeadline=NSProcessInfo.processInfo.systemUptime+0.4;
+        return YES;
+    }
     catch(const std::exception &e) { (void)e; _engine->disconnect(); return NO; }
 }
 - (void)activate:(id)client {
+    BOOL newActivation=!_active || self.client!=client;
     // Some clients activate the next IMK controller before deactivating the
     // old one. End the previous marked range before switching the shared core.
     if(activeSession && activeSession!=self) [activeSession deactivate];
     if(_active && self.client!=client) [self deactivate];
     activeSession=self;
-    self.client=client; _active=YES; _modifiers=0; _settingsGesture=NO; [self ensureReady];
+    self.client=client; _active=YES; _modifiers=0; _settingsGesture=NO;
+    if(newActivation) { _modeKnown=NO; _modeFeedbackPending=YES; }
+    [self ensureReady]; [self presentModeFeedback];
     [_timer invalidate]; __weak CassotisInputSession *weak=self;
     _timer=[NSTimer timerWithTimeInterval:0.025 repeats:YES block:^(NSTimer *t){
         (void)t; [weak tick];
@@ -169,6 +207,7 @@ uint16_t CassotisShortcutKey(const cassotis::Key &k) {
     [NSRunLoop.mainRunLoop addTimer:_timer forMode:NSRunLoopCommonModes];
 }
 - (void)deactivate {
+    [self cancelModeFeedback];
     [self commit]; _active=NO; [_timer invalidate]; _timer=nil; [_panel orderOut:nil];
     try { if(_engine->connected()) _engine->active(false); } catch(...) { _engine->disconnect(); }
     _engine->disconnect();
@@ -263,6 +302,7 @@ uint16_t CassotisShortcutKey(const cassotis::Key &k) {
     } catch(...) { [self recover]; }
 }
 - (void)apply:(const cassotis::Result &)r {
+    if(!r.preedit.empty()) [self cancelModeFeedback];
     _result=r;
     _pollAttempts=0;
     id client=self.client;
@@ -279,6 +319,7 @@ uint16_t CassotisShortcutKey(const cassotis::Key &k) {
     }
 }
 - (void)recover {
+    [self cancelModeFeedback];
     // The engine never writes to applications. After an uncertain reply, commit
     // only the last visible raw composition and let the current key pass through.
     NSString *raw=self.preedit; [self clearStartup]; _result={}; _engine->disconnect(); [_panel orderOut:nil];
@@ -289,7 +330,8 @@ uint16_t CassotisShortcutKey(const cassotis::Key &k) {
 - (void)tick {
     if(!_active) return;
     if(!_startupKeys.empty()) { [self replayStartup]; return; }
-    if(!_engine->connected()) { [self ensureReady]; return; }
+    if(!_engine->connected()) { [self ensureReady]; [self presentModeFeedback]; return; }
+    [self presentModeFeedback];
     if(!_result.pending) return;
     try {
         if(++_pollAttempts>120) { _result.pending=false; return; }
@@ -308,6 +350,8 @@ uint16_t CassotisShortcutKey(const cassotis::Key &k) {
     // generation would invalidate completion queued by the matching keyDown.
     // Modifier-only shortcuts are handled by flagsChanged below.
     if(event.type==NSEventTypeKeyUp) return NO;
+    if(event.type==NSEventTypeKeyDown || event.type==NSEventTypeLeftMouseDown ||
+       event.type==NSEventTypeRightMouseDown) [self cancelModeFeedback];
     if(event.type==NSEventTypeLeftMouseDown || event.type==NSEventTypeRightMouseDown) {
         if(_panel.visible && NSPointInRect(NSEvent.mouseLocation,_panel.frame)) return NO;
         [self commit]; [self cancelModifierGesture]; return NO;
@@ -329,6 +373,7 @@ uint16_t CassotisShortcutKey(const cassotis::Key &k) {
     auto key=CassotisTranslateKey(event,release);
     if((key.modifiers&8) || (key.special==5 && (key.modifiers&2)) || event.keyCode==kVK_Function ||
        ((event.modifierFlags&NSEventModifierFlagFunction) && (!key.special || key.special==5))) {
+        [self cancelModeFeedback];
         [self commit]; [self cancelModifierGesture]; return NO;
     }
     if(!_startupKeys.empty()) {
@@ -366,9 +411,18 @@ uint16_t CassotisShortcutKey(const cassotis::Key &k) {
             [self commit]; [self showSettings]; return YES;
         }
         if(!release && event.type==NSEventTypeKeyDown) [self syncSurrounding];
+        id eventClient=self.client;
         auto result=_engine->key(key);
         if(result.handled || !result.commit.empty() || !result.preedit.empty()) [self apply:result];
         else if(event.type==NSEventTypeKeyDown) [self commit];
+        // Read the authoritative new mode only for the configured mode key;
+        // ordinary typing adds no state RPC or work to the input path.
+        const auto &modeShortcut=state.shortcuts[0];
+        if(_active && self.client==eventClient && _engine->connected() &&
+           !modeShortcut.disabled && !key.repeat && vk==modeShortcut.key) {
+            auto mode=_engine->state().mode;
+            if(mode!=state.mode) [self showInputMode:mode];
+        }
         return result.handled;
     } catch(...) { [self recover]; return NO; }
 }
@@ -398,6 +452,7 @@ uint16_t CassotisShortcutKey(const cassotis::Key &k) {
     } @finally { _committing=NO; }
 }
 - (void)cancel {
+    [self cancelModeFeedback];
     [self clearStartup];
     try { if(_engine->connected()) _engine->reset(); } catch(...) { _engine->disconnect(); }
     [self apply:cassotis::Result{}];
@@ -426,6 +481,7 @@ uint16_t CassotisShortcutKey(const cassotis::Key &k) {
         switch(action) { case 0:s.mode^=1;break;case 1:s.dictionary^=1;break;
             case 2:s.flags^=1;break;case 3:s.flags^=2;break;case 4:s.flags^=4;break;default:return; }
         control.setState(s);
+        if(action==0) [activeSession showInputMode:s.mode];
     } catch(...) { [self recover]; }
 }
 - (NSMenu *)modeMenuWithTarget:(id)target action:(SEL)action {
@@ -452,5 +508,8 @@ uint16_t CassotisShortcutKey(const cassotis::Key &k) {
     }
     return menu;
 }
-- (void)showSettings { [activeSession commit]; [CassotisSettingsController.shared showWindow:nil]; }
+- (void)showSettings {
+    [activeSession cancelModeFeedback]; [activeSession commit];
+    [CassotisSettingsController.shared showWindow:nil];
+}
 @end

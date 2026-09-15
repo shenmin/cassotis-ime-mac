@@ -4,6 +4,27 @@
 #import "CandidateAppearance.h"
 #include <cmath>
 
+BOOL CassotisClientCaretRect(id client, NSRect *rect) {
+    @try {
+        // IMK uses an inline-composition index, including when it is empty.
+        // A document selectedRange offset breaks Terminal's rectangle lookup.
+        NSRect line=NSZeroRect;
+        [client attributesForCharacterIndex:0 lineHeightRectangle:&line];
+        if(std::isfinite(line.origin.x) && std::isfinite(line.origin.y) &&
+           std::isfinite(line.size.width) && std::isfinite(line.size.height) &&
+           line.size.width>=0 && line.size.height>0) { *rect=line; return YES; }
+    } @catch(NSException *e) { (void)e; }
+    return NO;
+}
+NSRect CassotisPanelFrameAtCaret(NSRect caret, NSSize size, NSRect visible) {
+    size.width=MIN(size.width,visible.size.width); size.height=MIN(size.height,visible.size.height);
+    CGFloat x=MIN(MAX(caret.origin.x,NSMinX(visible)),NSMaxX(visible)-size.width);
+    constexpr CGFloat clearance=8;
+    CGFloat y=NSMinY(caret)-size.height-clearance;
+    if(y<NSMinY(visible)) y=MIN(NSMaxY(caret)+clearance,NSMaxY(visible)-size.height);
+    return NSMakeRect(x,MAX(y,NSMinY(visible)),size.width,size.height);
+}
+
 @implementation CassotisCandidatePanel {
     NSUInteger _revision;
 }
@@ -41,16 +62,7 @@
     ++_revision;
     if(r.preedit.empty() || (r.candidates.empty() && r.completion.empty())) { [self orderOut:nil]; return; }
     NSRect caret=NSMakeRect(NSEvent.mouseLocation.x,NSEvent.mouseLocation.y,1,20);
-    @try {
-        // IMK's character index is relative to the inline composition, not the
-        // document's selectedRange. Terminal returns an empty rectangle for an
-        // out-of-range document offset, which would pin the panel at (0,0).
-        NSRect line=NSZeroRect;
-        [client attributesForCharacterIndex:0 lineHeightRectangle:&line];
-        if(std::isfinite(line.origin.x) && std::isfinite(line.origin.y) &&
-           std::isfinite(line.size.width) && std::isfinite(line.size.height) &&
-           line.size.width>=0 && line.size.height>0) caret=line;
-    } @catch(NSException *e) { (void)e; }
+    CassotisClientCaretRect(client,&caret);
     NSScreen *screen=NSScreen.mainScreen;
     // Insertion rectangles may have zero width; rect intersection would then
     // miss the caret's display and fall back to the application's main screen.
@@ -64,12 +76,7 @@
         self,@selector(clicked:),@selector(deleteClicked:),_revision,self.completionKey);
     NSSize fitting=self.contentView.fittingSize;
     fitting.width=MAX(180,fitting.width);
-    fitting.width=MIN(fitting.width,visible.size.width); fitting.height=MIN(fitting.height,visible.size.height);
-    CGFloat x=MIN(MAX(caret.origin.x,NSMinX(visible)),NSMaxX(visible)-fitting.width);
-    constexpr CGFloat clearance=8;
-    CGFloat y=NSMinY(caret)-fitting.height-clearance;
-    if(y<NSMinY(visible)) y=MIN(NSMaxY(caret)+clearance,NSMaxY(visible)-fitting.height);
-    [self setFrame:NSMakeRect(x,MAX(y,NSMinY(visible)),fitting.width,fitting.height) display:YES];
+    [self setFrame:CassotisPanelFrameAtCaret(caret,fitting,visible) display:YES];
     [self orderFrontRegardless];
 }
 @end

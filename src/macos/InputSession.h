@@ -7,6 +7,13 @@ FOUNDATION_EXPORT void CassotisStartEngine(void);
 FOUNDATION_EXPORT void CassotisStopEngine(void);
 cassotis::Key CassotisTranslateKey(NSEvent *event, BOOL release);
 uint16_t CassotisShortcutKey(const cassotis::Key &key);
+BOOL CassotisClientCaretRect(id client, NSRect *rect);
+NSRect CassotisPanelFrameAtCaret(NSRect caret, NSSize size, NSRect visible);
+
+@interface CassotisInputModePanel : NSPanel
+- (BOOL)showMode:(uint8_t)mode client:(id)client;
+- (void)dismiss;
+@end
 
 @interface CassotisCandidatePanel : NSPanel
 @property(nonatomic) uint8_t completionKey;
@@ -19,6 +26,7 @@ uint16_t CassotisShortcutKey(const cassotis::Key &key);
 @property(nonatomic, strong, nullable) id client;
 @property(nonatomic, readonly) NSString *preedit;
 @property(nonatomic, readonly) CassotisCandidatePanel *panel;
+@property(nonatomic, readonly) CassotisInputModePanel *modePanel;
 - (void)activate:(id)client;
 - (void)deactivate;
 - (BOOL)handleEvent:(NSEvent *)event;
