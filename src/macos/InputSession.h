@@ -9,6 +9,8 @@ cassotis::Key CassotisTranslateKey(NSEvent *event, BOOL release);
 uint16_t CassotisShortcutKey(const cassotis::Key &key);
 BOOL CassotisClientCaretRect(id client, NSRect *rect);
 NSRect CassotisPanelFrameAtCaret(NSRect caret, NSSize size, NSRect visible);
+NSRect CassotisInputModeFrameAtCaret(NSRect caret, NSSize size, NSRect visible,
+    NSArray<NSValue *> *accessories, NSRect current);
 
 @interface CassotisInputModePanel : NSPanel
 - (BOOL)showMode:(uint8_t)mode client:(id)client;
