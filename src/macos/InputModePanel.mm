@@ -17,7 +17,7 @@
         self.wantsLayer=YES;
         self.accessibilityIdentifier=@"input-mode-bubble";
         _symbol=[NSTextField labelWithString:@""];
-        _symbol.font=[NSFont systemFontOfSize:21 weight:NSFontWeightMedium];
+        _symbol.font=[NSFont systemFontOfSize:13 weight:NSFontWeightMedium];
         _symbol.alignment=NSTextAlignmentCenter;
         _symbol.accessibilityIdentifier=@"input-mode-symbol";
         [self addSubview:_symbol];
@@ -101,7 +101,8 @@
     view.aboveCaret=NSMinY(position)>=NSMaxY(caret);
     view.symbol.stringValue=mode==0?@"中":@"英";
     view.symbol.textColor=colors.text;
-    view.symbol.frame=NSMakeRect(1,view.aboveCaret?12:7,44,28);
+    CGFloat symbolHeight=view.symbol.fittingSize.height;
+    view.symbol.frame=NSMakeRect(1,(view.aboveCaret?26:21)-symbolHeight/2,44,symbolHeight);
     view.accessibilityValue=mode==0?@"中文":@"英文";
     view.symbol.accessibilityLabel=view.accessibilityValue;
     self.accessibilityLabel=[NSString stringWithFormat:@"%@，%@",CassotisShortName(),view.accessibilityValue];
