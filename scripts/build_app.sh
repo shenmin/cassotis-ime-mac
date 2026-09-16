@@ -26,6 +26,7 @@ fi
 cp "$bin/cassotis-engine" "$app/Contents/MacOS/"
 cp "$bin/libcassotis_ort.dylib" "$bin/libonnxruntime.1.20.1.dylib" "$app/Contents/Frameworks/"
 rsync -a --delete "$root/data/models/" "$app/Contents/Resources/models/"
+python3 -B "$root/scripts/prepare_model_metadata.py" "$app/Contents/Resources/models"
 cp "$root/build/dictionaries/dict_sc.db" "$root/build/dictionaries/dict_tc.db" "$app/Contents/Resources/dictionaries/"
 cp "$root/resources/Info.plist" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$app/Contents/Info.plist"

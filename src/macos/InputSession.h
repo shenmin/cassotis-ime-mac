@@ -30,6 +30,8 @@ NSRect CassotisInputModeFrameAtCaret(NSRect caret, NSSize size, NSRect visible,
 @property(nonatomic, readonly) CassotisCandidatePanel *panel;
 @property(nonatomic, readonly) CassotisInputModePanel *modePanel;
 - (void)activate:(id)client;
+- (BOOL)activateFromNotification:(id)client;
+- (NSDictionary<NSAttributedStringKey, id> *)markedTextAttributesForRange:(NSRange)range;
 - (void)deactivate;
 - (BOOL)handleEvent:(NSEvent *)event;
 - (void)commit;

@@ -1,6 +1,6 @@
 # Compatibility
 
-Version 0.1.0 targets Apple Silicon and macOS 14 or later. Build and desktop validation used macOS 26.6.2, an Apple M2 Pro, Xcode 26.6 and Free Pascal 3.2.2.
+Version 0.1.0 (build 1) targets Apple Silicon and macOS 14 or later. Build and desktop validation used macOS 26.6.2, an Apple M2 Pro, Xcode 26.6 and Free Pascal 3.2.2.
 
 | Environment | Validation status |
 | --- | --- |
@@ -19,3 +19,5 @@ The candidate panel follows the composition start, stays within its display's vi
 When a client cannot provide surrounding text, composition continues with an empty external context. Failed or timed-out engine requests preserve the last visible composition and close the connection so a later request cannot consume a stale reply. If model loading fails, base-dictionary input remains available; logs identify model failures.
 
 Sleep/wake behavior and other third-party application combinations require further runtime validation. Published measurements and their scope are described in [BENCHMARK.md](BENCHMARK.md).
+
+Pinyin diagnostics highlight invalid ranges in the candidate window’s existing second row, alongside any Tab completion and the logo. The input method also supplies marked-text color attributes, but InputMethodKit or the receiving application may replace inline colors with system styling. The candidate diagnostic remains visible, including when invalid input has no candidates, and clears when the Pinyin is corrected.

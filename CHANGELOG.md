@@ -2,8 +2,20 @@
 
 ## 0.1.0 (build 1)
 
+- Prevent background macOS input clients from interrupting a composition. Finish launching the new frontend during installation so the first key does not wait on executable verification; restore the previous app if launch fails.
+
+- Align the engine and lexicon with Windows / Cassotis Lexicon v1.26.1.
+- Add guarded joint sentence repair with a bilateral verifier and preserve exact FP32 evidence when reusing query encodings.
+- Reuse validated repaired prefixes for displayed and committed Tab completions; prefetch long completion work with request and context isolation.
+- Fix Ziguang initial/final boundaries, including `sh`, `zh`, and `ch` for `song`, `zong`, and `cong`. Keep completed `ng` syllables and mixed retroflex abbreviations stable through typing, backspace and partial selection.
+- Display learned words in the active simplified/traditional script while preserving learning identity and removal of both aliases.
+- Show conservative invalid-Pinyin and repeated-vowel diagnostics in the candidate footer, preserving the two-row height, Tab completions and logo. Also supply marked-text colors to clients that retain them; macOS can replace inline styles.
+- Reduce exact-component sorting work without changing ordering.
+
+### Earlier changes
+
 - Add a native macOS InputMethodKit / AppKit input method with a Free Pascal helper, local ONNX inference and simplified/traditional dictionaries.
-- Align the pinyin engine with Windows 1.25.0 and Linux 0.7.0, using Lexicon 1.25.0 and schema 24; cover prefix recall, compound ranking, ü aliases and stable candidate paging.
+- Align the pinyin engine with Windows 1.25.0, using Lexicon 1.25.0 and schema 24; cover prefix recall, compound ranking, ü aliases and stable candidate paging.
 - Support full pinyin, abbreviated pinyin, six double-pinyin schemes, fuzzy matching, local learning and Tab completion.
 - Keep the candidate panel at two rows, show up to nine candidates, highlight the selected item and allow removal of user words.
 - Provide eight appearance options, font completion, live previews, native shortcut recording and automatically saved settings.

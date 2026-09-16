@@ -155,6 +155,17 @@ uint16_t CassotisShortcutKey(const cassotis::Key &k) {
 - (CassotisCandidatePanel *)panel { return _panel; }
 - (CassotisInputModePanel *)modePanel { return _modePanel; }
 - (NSString *)preedit { return str(_result.preedit); }
+- (NSDictionary<NSAttributedStringKey, id> *)markedTextAttributesForRange:(NSRange)range {
+    NSUInteger length=self.preedit.length;
+    if(range.length==0 || range.location>length || range.length>length-range.location) return @{};
+    for(const auto &span:_result.warnings) {
+        if(span.start>length || span.length==0 || span.length>length-span.start) continue;
+        if(range.location>=span.start && NSMaxRange(range)<=span.start+span.length)
+            return @{NSForegroundColorAttributeName:NSColor.systemRedColor,
+                     NSUnderlineColorAttributeName:NSColor.systemRedColor};
+    }
+    return @{};
+}
 - (void)cancelModeFeedback {
     if(_modeFeedbackPending || _modePanel.visible) [_modePanel dismiss];
     _modeFeedbackPending=NO;
@@ -189,6 +200,18 @@ uint16_t CassotisShortcutKey(const cassotis::Key &k) {
         return YES;
     }
     catch(const std::exception &e) { (void)e; _engine->disconnect(); return NO; }
+}
+- (BOOL)activateFromNotification:(id)client {
+    // LaunchServices can activate an IMK controller for a background process
+    // while another application is composing. It must not take ownership of
+    // the shared session. Actual key events still use activate: directly.
+    @try {
+        NSString *foreground=NSWorkspace.sharedWorkspace.frontmostApplication.bundleIdentifier;
+        NSString *bundle=[client respondsToSelector:@selector(bundleIdentifier)]?[client bundleIdentifier]:nil;
+        if(bundle.length && foreground.length && ![bundle isEqual:foreground]) return NO;
+    } @catch(NSException *error) { (void)error; }
+    [self activate:client];
+    return YES;
 }
 - (void)activate:(id)client {
     BOOL newActivation=!_active || self.client!=client;
@@ -309,8 +332,13 @@ uint16_t CassotisShortcutKey(const cassotis::Key &k) {
     @try {
         if(!r.commit.empty()) [client insertText:str(r.commit) replacementRange:NSMakeRange(NSNotFound,NSNotFound)];
         if(self.client!=client || !_active) return;
-        NSAttributedString *marked=[[NSAttributedString alloc] initWithString:str(r.preedit)
+        NSMutableAttributedString *marked=[[NSMutableAttributedString alloc] initWithString:str(r.preedit)
             attributes:@{NSUnderlineStyleAttributeName:@(NSUnderlineStyleSingle)}];
+        for(const auto &span:r.warnings) {
+            if(span.start<=marked.length && span.length>0 && span.length<=marked.length-span.start)
+                [marked addAttributes:[self markedTextAttributesForRange:NSMakeRange(span.start,span.length)]
+                    range:NSMakeRange(span.start,span.length)];
+        }
         [client setMarkedText:marked selectionRange:NSMakeRange(marked.length,0)
             replacementRange:NSMakeRange(NSNotFound,NSNotFound)];
         if(self.client==client && _active) [_panel showResult:r client:client];

@@ -28,11 +28,13 @@ cleanup() {
         if [[ $installed -ne 0 ]]; then
             # Registration-only did not enable or disable any input source.
             # Preserve the user's state and menu order when restoring the app.
+            "$control" prepare-update >/dev/null || true
             mv "$destination" "$staging/failed.app"
         fi
         if [[ -n "$backup" && -d "$backup" ]]; then
             mv "$backup" "$destination"
             "$control" register-only "$destination" >/dev/null || true
+            "$control" launch >/dev/null || true
         fi
     fi
     if [[ -n "$previous_source" ]]; then "$control" select-id "$previous_source" >/dev/null || true; fi
@@ -53,6 +55,10 @@ mv "$staging/Cassotis.app" "$destination"
 installed=1
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$destination"
 "$control" register-only "$destination"
+# Finish LaunchServices verification of the new executable before restoring
+# the input source. macOS can discard a first key while launching a replacement
+# input method; the frontend can buffer keys once its IMK server is running.
+"$control" launch
 printf 'Installed: %s\n' "$destination"
 cat <<'INSTRUCTIONS'
 应用文件已安装。请完成 macOS 的输入法启用确认：

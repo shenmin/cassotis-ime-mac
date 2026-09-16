@@ -14,6 +14,7 @@ uses
     nc_dictionary_sqlite,
     nc_user_dictionary,
     nc_pinyin_transformer_host,
+    nc_pinyin_input_diagnostics,
     nc_local_completion_host;
 
 const
@@ -28,6 +29,7 @@ type
     private
         FContexts: TncEngineContextRegistry;
         FEngine: TncEngine;
+        FInputDiagnostics: TncPinyinInputDiagnostics;
         FStateStore: TncUserDictionary;
         FState: TncEngineState;
         FConfig: TncEngineConfig;
@@ -50,6 +52,7 @@ type
         function ActivateContext(const context: TncEngineContext): Boolean;
         function KeyEventToVirtualKey(const key_event: TncKeyEvent;
             out key_code: Word; out key_state: TncKeyState): Boolean;
+        procedure PrefetchLongNeuralCompletion(const context: TncEngineContext);
         procedure SyncContext(const context: TncEngineContext);
         procedure PopulateResult(const context: TncEngineContext;
             var engine_result: TncEngineResult);
@@ -142,6 +145,7 @@ var
 begin
     FContexts := TncEngineContextRegistry.Create;
     FEngine := nil;
+    FInputDiagnostics := TncPinyinInputDiagnostics.Create;
     FStateStore := nil;
     FLongNeuralReranker := nil;
     FLocalCompletionHost := nil;
@@ -210,6 +214,7 @@ destructor TncEngineService.Destroy;
 begin
     FLocalCompletionHost.Free;
     FEngine.Free;
+    FInputDiagnostics.Free;
     FLongNeuralReranker := nil;
     FStateStore.Free;
     FContexts.Free;
@@ -450,6 +455,19 @@ begin
     SyncContext(context);
 end;
 
+procedure TncEngineService.PrefetchLongNeuralCompletion(const context: TncEngineContext);
+var task: TncLocalCompletionTask;
+begin
+    if (context = nil) or not context.Active or (FEngine = nil) or
+        (FLocalCompletionHost = nil) or
+        (FEngine.get_composition_text = context.Composition) then Exit;
+    task := Default(TncLocalCompletionTask);
+    if not FEngine.get_prefetch_long_neural_completion_request(task.request) then Exit;
+    task.context_id := context.Id;
+    task.generation_id := context.Generation;
+    FLocalCompletionHost.Prefetch(task);
+end;
+
 procedure TncEngineService.SyncContext(const context: TncEngineContext);
 var
     candidates: TncCandidateList;
@@ -459,6 +477,7 @@ var
 begin
     if (context = nil) or (FEngine = nil) then
         Exit;
+    PrefetchLongNeuralCompletion(context);
     candidates := FEngine.get_candidates;
     query := FEngine.get_last_lookup_key;
     for index := 0 to High(candidates) do
@@ -486,11 +505,32 @@ end;
 
 procedure TncEngineService.PopulateResult(const context: TncEngineContext;
     var engine_result: TncEngineResult);
+var
+    spans: TncPinyinDiagnosticSpans;
+    raw: string;
+    index, offset: Integer;
 begin
     if (context = nil) or (FEngine = nil) then
         Exit;
     SyncContext(context);
     engine_result.preedit_text := FEngine.get_preedit_text;
+    engine_result.preedit_warnings := nil;
+    if FEngine.config.input_mode = im_chinese then
+    begin
+        raw := FEngine.get_composition_text;
+        spans := FInputDiagnostics.check(raw, FEngine.config.pinyin_input_scheme);
+        offset := Length(engine_result.preedit_text) - Length(raw);
+        if offset >= 0 then
+        begin
+            SetLength(engine_result.preedit_warnings, Length(spans));
+            for index := 0 to High(spans) do
+            begin
+                engine_result.preedit_warnings[index].start_index := offset + spans[index].start_index;
+                engine_result.preedit_warnings[index].length := spans[index].length;
+                engine_result.preedit_warnings[index].kind := Ord(spans[index].kind);
+            end;
+        end;
+    end;
     engine_result.query_text := FEngine.get_last_lookup_key;
     engine_result.candidates := Copy(context.Candidates, 0,
         Length(context.Candidates));

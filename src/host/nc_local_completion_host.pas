@@ -24,7 +24,21 @@ type
     TncLocalCompletionTask = record
         context_id: QWord;
         generation_id: QWord;
+        prefetch_only: Boolean;
         request: TncLongNeuralCompletionRequest;
+    end;
+
+    TncLocalCompletionPrefetchCache = record
+    private
+        m_valid, m_accepted: Boolean;
+        m_task: TncLocalCompletionTask;
+        m_result: TncLongNeuralCompletionResult;
+    public
+        procedure clear;
+        procedure remember(const task: TncLocalCompletionTask; const accepted: Boolean;
+            const value: TncLongNeuralCompletionResult);
+        function take(const task: TncLocalCompletionTask; out accepted: Boolean;
+            out value: TncLongNeuralCompletionResult): Boolean;
     end;
 
     TncLocalCompletionFinished = record
@@ -104,6 +118,7 @@ type
         FLock: TCriticalSection;
         FWakeup: TEvent;
         FWorker: TncLocalCompletionWorker;
+        FPrefetchCache: TncLocalCompletionPrefetchCache;
         FPendingTask: TncLocalCompletionTask;
         FHasPendingTask: Boolean;
         FFinished: TncLocalCompletionFinished;
@@ -139,6 +154,7 @@ type
             const capture_candidate_pool: Boolean = False);
         destructor Destroy; override;
         function Enqueue(const task: TncLocalCompletionTask): Boolean;
+        function Prefetch(const task: TncLocalCompletionTask): Boolean;
         function TryPopFinishedFor(const context_id: QWord;
             out finished: TncLocalCompletionFinished): Boolean;
         function Ready: Boolean;
@@ -188,6 +204,53 @@ begin
     if Length(buffer) = 0 then
         Exit('');
     Result := UTF8Decode(UTF8String(PAnsiChar(@buffer[0])));
+end;
+
+procedure TncLocalCompletionPrefetchCache.clear;
+begin
+    m_valid := False;
+    m_accepted := False;
+    m_task := Default(TncLocalCompletionTask);
+    m_result := Default(TncLongNeuralCompletionResult);
+end;
+
+procedure TncLocalCompletionPrefetchCache.remember(const task: TncLocalCompletionTask;
+    const accepted: Boolean; const value: TncLongNeuralCompletionResult);
+begin
+    clear;
+    if not task.prefetch_only then Exit;
+    m_task := task;
+    m_result := value;
+    m_accepted := accepted;
+    m_valid := True;
+end;
+
+function TncLocalCompletionPrefetchCache.take(const task: TncLocalCompletionTask;
+    out accepted: Boolean; out value: TncLongNeuralCompletionResult): Boolean;
+begin
+    Result := m_valid and not task.prefetch_only and
+        (task.context_id = m_task.context_id) and
+        (task.generation_id = m_task.generation_id) and
+        (task.request.query_prefix = m_task.request.query_prefix) and
+        (task.request.query_syllables = m_task.request.query_syllables) and
+        (task.request.context_text = m_task.request.context_text) and
+        (task.request.phonetic_only = m_task.request.phonetic_only) and
+        (task.request.top1_text = m_task.request.top1_text) and
+        (task.request.top1_path = m_task.request.top1_path) and
+        (task.request.top1_anchor_path = m_task.request.top1_anchor_path) and
+        (task.request.top2_text = m_task.request.top2_text) and
+        (task.request.top2_path = m_task.request.top2_path) and
+        (task.request.top2_anchor_path = m_task.request.top2_anchor_path);
+    accepted := False;
+    value := Default(TncLongNeuralCompletionResult);
+    if Result then
+    begin
+        accepted := m_accepted;
+        value := m_result;
+    end;
+    // A single-use worker-owned slot. Delivery uses the new task's generation,
+    // never the speculative task's generation or callback.
+    clear;
 end;
 
 constructor TncLocalCompletionWorker.Create(
@@ -287,7 +350,7 @@ begin
         FReady := False;
         FLoadFinished := True;
         FLastError := error_text;
-        if FHasPendingTask then
+        if FHasPendingTask and not FPendingTask.prefetch_only then
         begin
             FFinished.task := FPendingTask;
             FFinished.accepted := False;
@@ -683,7 +746,14 @@ begin
             if not PopTask(task) then
                 Continue;
         end;
-        accepted := RunTask(task, completion_result);
+        if not FPrefetchCache.take(task, accepted, completion_result) then
+            accepted := RunTask(task, completion_result);
+        if task.prefetch_only then
+        begin
+            FPrefetchCache.remember(task, accepted, completion_result);
+            if not Ready then Break;
+            Continue;
+        end;
         StoreFinished(task, accepted, completion_result);
         if not Ready then
             Break;
@@ -710,6 +780,14 @@ begin
     end;
     if Result then
         FWakeup.SetEvent;
+end;
+
+function TncLocalCompletionHost.Prefetch(const task: TncLocalCompletionTask): Boolean;
+var speculative: TncLocalCompletionTask;
+begin
+    speculative := task;
+    speculative.prefetch_only := True;
+    Result := Enqueue(speculative);
 end;
 
 function TncLocalCompletionHost.TryPopFinishedFor(const context_id: QWord;

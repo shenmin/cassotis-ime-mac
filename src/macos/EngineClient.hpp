@@ -32,11 +32,13 @@ struct Candidate {
     uint8_t source = 0, kind = 0;
     bool deletable = false;
 };
+struct PreeditWarning { uint32_t start = 0, length = 0; uint8_t kind = 0; };
 struct Result {
     bool handled = false, pending = false;
     int32_t selected = -1, page = 0, pages = 0;
     std::string commit, preedit, query, completion;
     std::vector<Candidate> candidates;
+    std::vector<PreeditWarning> warnings;
 };
 struct Key {
     uint16_t special = 0;

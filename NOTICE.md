@@ -1,6 +1,6 @@
 # Third-party notices
 
-Cassotis IME - 言泉输入法 for macOS is a Free Pascal and Objective-C++ port of [Cassotis IME](https://github.com/shenmin/cassotis-ime) and [Cassotis IME for Linux](https://github.com/shenmin/cassotis-ime-linux), developed by Shen Min and the Cassotis contributors. Application source is distributed under GPL-3.0; see [LICENSE](LICENSE). The engine follows Windows 1.25.0 and uses Lexicon 1.25.0. Model and schema hashes are recorded in `data/runtime-assets.sha256`; lexicon input hashes are in `data/lexicon-inputs.json`.
+Cassotis IME - 言泉输入法 for macOS is a Free Pascal and Objective-C++ port of [Cassotis IME](https://github.com/shenmin/cassotis-ime) and [Cassotis IME for Linux](https://github.com/shenmin/cassotis-ime-linux), developed by Shen Min and the Cassotis contributors. Application source is distributed under GPL-3.0; see [LICENSE](LICENSE). The engine follows Windows 1.26.1 and uses Lexicon 1.26.1. Model and schema hashes are recorded in `data/runtime-assets.sha256`; lexicon input hashes are in `data/lexicon-inputs.json`.
 
 The shared [Cassotis Lexicon](https://github.com/shenmin/cassotis-lexicon) declares CC BY-SA 4.0. The bundled databases are a schema 24 SQLite conversion of the upstream generated text assets, including their derived indexes and language-model tables. Attribution, source manifests and the full CC BY-SA 4.0 license are in `third_party/lexicon/` and in the installed app's `Contents/Resources/licenses/lexicon/`.
 

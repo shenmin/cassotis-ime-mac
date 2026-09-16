@@ -1,5 +1,6 @@
 #import <AppKit/AppKit.h>
 #import <InputMethodKit/InputMethodKit.h>
+#import <os/log.h>
 #import "InputSession.h"
 #import "SettingsController.h"
 #import "ProductName.h"
@@ -26,8 +27,13 @@ static void CassotisShowAboutPanel(void) {
 }
 // Opt-in lifecycle diagnostics record identities and lengths, never input text.
 - (void)trace:(const char *)operation sender:(id)sender {
-    if(getenv("CASSOTIS_TRACE_INPUT")) NSLog(@"Cassotis lifecycle %s controller=%p sender=%p current=%p marked=%lu",
-        operation,self,sender,_session.client,(unsigned long)_session.preedit.length);
+    if(!getenv("CASSOTIS_TRACE_INPUT")) return;
+    NSString *bundle=@"unknown";
+    @try { if([sender respondsToSelector:@selector(bundleIdentifier)]) bundle=[sender bundleIdentifier]; }
+    @catch(NSException *error) { (void)error; }
+    os_log(OS_LOG_DEFAULT,"Cassotis lifecycle %{public}s controller=%p sender=%p current=%p marked=%lu bundle=%{public}@ foreground=%{public}@",
+        operation,self,sender,_session.client,(unsigned long)_session.preedit.length,bundle,
+        NSWorkspace.sharedWorkspace.frontmostApplication.bundleIdentifier);
 }
 - (id)initWithServer:(IMKServer *)server delegate:(id)delegate client:(id)client {
     self=[super initWithServer:server delegate:delegate client:client];
@@ -37,7 +43,10 @@ static void CassotisShowAboutPanel(void) {
     (void)sender; return NSEventMaskKeyDown|NSEventMaskKeyUp|NSEventMaskFlagsChanged|
         NSEventMaskLeftMouseDown|NSEventMaskRightMouseDown;
 }
-- (void)activateServer:(id)sender { [self trace:"activate" sender:sender]; [_session activate:sender]; }
+- (void)activateServer:(id)sender {
+    [self trace:"activate" sender:sender];
+    if(![_session activateFromNotification:sender]) [self trace:"ignored-background-activate" sender:sender];
+}
 - (void)deactivateServer:(id)sender { [self trace:"deactivate" sender:sender]; [_session deactivate]; }
 - (BOOL)handleEvent:(NSEvent *)event client:(id)sender {
     if(event.type==NSEventTypeKeyUp) return NO;

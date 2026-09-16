@@ -723,12 +723,16 @@ var
     writer: TncIpcPayloadWriter;
     candidate: TncCandidate;
     result_flags: Byte;
+    span: TncPreeditWarningSpan;
+    last_end: Integer;
 begin
     if Length(engine_result.candidates) > c_ipc_payload_max_candidates then
         raise EncIpcPayloadError.Create('Engine result has too many candidates');
     writer := TncIpcPayloadWriter.Create;
     try
-        WritePayloadHeader(writer);
+        if Length(engine_result.preedit_warnings) > 0 then
+            WritePayloadHeaderVersion(writer, 2)
+        else WritePayloadHeader(writer);
         writer.WriteBoolean(engine_result.handled);
         writer.WriteUInt16(0);
         result_flags := 0;
@@ -759,6 +763,27 @@ begin
             writer.WriteString(candidate.text);
             writer.WriteString(candidate.comment);
         end;
+        if Length(engine_result.preedit_warnings) > 0 then
+        begin
+            if Length(engine_result.preedit_warnings) > 1024 then
+                raise EncIpcPayloadError.Create('Too many preedit warnings');
+            writer.WriteUInt32(Length(engine_result.preedit_warnings));
+            last_end := 0;
+            for span in engine_result.preedit_warnings do
+            begin
+                if (span.start_index < last_end) or (span.length <= 0) or
+                    (span.start_index > Length(engine_result.preedit_text)) or
+                    (span.length > Length(engine_result.preedit_text) - span.start_index) or
+                    (span.kind > 1) then
+                    raise EncIpcPayloadError.Create('Invalid preedit warning range');
+                writer.WriteInt32(span.start_index);
+                writer.WriteInt32(span.length);
+                writer.WriteByte(span.kind);
+                writer.WriteByte(0);
+                writer.WriteUInt16(0);
+                last_end := span.start_index + span.length;
+            end;
+        end;
         Result := writer.Finish;
     finally
         writer.Free;
@@ -769,7 +794,11 @@ function nc_try_decode_engine_result_payload(const payload: TBytes;
     out engine_result: TncEngineResult; out error_text: string): Boolean;
 var
     reader: TncIpcPayloadReader;
-    reserved16: Word;
+    reserved16, version: Word;
+    warning_count: Cardinal;
+    warning_index, last_end: Integer;
+    span: TncPreeditWarningSpan;
+    warning_reserved: Byte;
     result_flags: Byte;
     candidate_count: Cardinal;
     candidate_index: Integer;
@@ -780,9 +809,11 @@ var
 begin
     nc_initialize_engine_result(engine_result);
     candidate_count := 0;
+    warning_count := 0;
     reader := TncIpcPayloadReader.Create(payload);
     try
-        Result := ReadPayloadHeader(reader) and
+        Result := ReadPayloadHeaderVersion(reader, version) and
+            ((version = 1) or (version = 2)) and
             reader.ReadBoolean(engine_result.handled) and
             reader.ReadUInt16(reserved16) and reader.ReadByte(result_flags) and
             reader.ReadInt32(engine_result.selected_index) and
@@ -795,6 +826,8 @@ begin
             reader.ReadString(engine_result.completion_text) and
             reader.ReadString(engine_result.error_text) and
             reader.ReadUInt32(candidate_count);
+        if (version <> 1) and (version <> 2) then
+            reader.SetError('Unsupported engine result version');
         if Result and ((reserved16 <> 0) or
             ((result_flags and not c_engine_result_known_flags) <> 0)) then
         begin
@@ -859,6 +892,30 @@ begin
                         Include(engine_result.candidates[candidate_index].fuzzy_rules,
                             rule);
             end;
+        end;
+        if Result and (version = 2) then
+        begin
+            Result := reader.ReadUInt32(warning_count) and (warning_count <= 1024);
+            if Result then SetLength(engine_result.preedit_warnings, warning_count);
+            last_end := 0;
+            warning_index := 0;
+            while Result and (warning_index < Integer(warning_count)) do
+            begin
+                Result := reader.ReadInt32(span.start_index) and reader.ReadInt32(span.length) and
+                    reader.ReadByte(span.kind) and reader.ReadByte(warning_reserved) and
+                    reader.ReadUInt16(reserved16);
+                Result := Result and (span.start_index >= last_end) and (span.length > 0) and
+                    (span.start_index <= Length(engine_result.preedit_text)) and
+                    (span.length <= Length(engine_result.preedit_text) - span.start_index) and
+                    (span.kind <= 1) and (warning_reserved = 0) and (reserved16 = 0);
+                if Result then
+                begin
+                    engine_result.preedit_warnings[warning_index] := span;
+                    last_end := span.start_index + span.length;
+                end;
+                Inc(warning_index);
+            end;
+            if not Result then reader.SetError('Invalid preedit warning payload');
         end;
         Result := Result and reader.Finish(error_text);
         if not Result then

@@ -60,7 +60,7 @@ NSRect CassotisPanelFrameAtCaret(NSRect caret, NSSize size, NSRect visible) {
 }
 - (void)showResult:(const cassotis::Result &)r client:(id)client {
     ++_revision;
-    if(r.preedit.empty() || (r.candidates.empty() && r.completion.empty())) { [self orderOut:nil]; return; }
+    if(r.preedit.empty() || (r.candidates.empty() && r.completion.empty() && r.warnings.empty())) { [self orderOut:nil]; return; }
     NSRect caret=NSMakeRect(NSEvent.mouseLocation.x,NSEvent.mouseLocation.y,1,20);
     CassotisClientCaretRect(client,&caret);
     NSScreen *screen=NSScreen.mainScreen;

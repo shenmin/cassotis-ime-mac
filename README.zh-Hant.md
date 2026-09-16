@@ -6,7 +6,7 @@
 
 [官網](https://www.yanquan.org/mac) · [下載安裝套件](https://github.com/shenmin/cassotis-ime-mac/releases) · [Windows](https://github.com/shenmin/cassotis-ime) · [Linux](https://github.com/shenmin/cassotis-ime-linux)
 
-原生 macOS 拼音輸入法，採用 **InputMethodKit / AppKit 前端與 Free Pascal 獨立引擎處理程序**。共用的正式引擎對齊 Windows 1.25.0，使用 Lexicon 1.25.0 詞庫與相同的本機模型。後續更新以 Windows 版為基準。
+原生 macOS 拼音輸入法，採用 **InputMethodKit / AppKit 前端與 Free Pascal 獨立引擎處理程序**。共用的正式引擎對齊 Windows 1.26.1，使用 Lexicon 1.26.1 詞庫與相同的本機模型。後續更新以 Windows 版為基準。
 
 版本 **0.1.0**（build **1**），適用於 Apple Silicon。部署目標為 macOS 14+，本輪實測環境為 M2 Pro / macOS 26.6.2；其他系統與架構的驗證範圍請見 [COMPATIBILITY.md](COMPATIBILITY.md)。
 
@@ -18,6 +18,8 @@
 - 原生候選視窗與設定介面，候選項橫排不換行、預設 14 點字級、八種配色選項與即時預覽；候選視窗不會搶走輸入焦點。
 - 切換中英文或從其他輸入法切入言泉時，在游標旁以短暫的動畫氣泡顯示言泉 logo 與「中」或「英」，並避開附近的系統游標標誌；開始輸入後自動收起。
 - 左側分類設定、字體名稱補全，以及可直接按鍵錄製的五項快捷鍵；確定選項後自動儲存，保留 macOS 系統組合鍵與安全密碼欄位的正常行為。
+- 聯合局部修正與雙向複核，Tab 補全重用已驗證的前綴修正；輸入或退格至未完成聲母時保持候選穩定。
+- 修復紫光 `sh` / `zh` / `ch` 的音節解析，保守判斷異常拼音與重複母音，在候選窗第二行以紅色標出錯誤範圍；共用使用者詞依簡繁模式轉換顯示。
 - 所有推論皆在本機透過 CPU ONNX Runtime 執行；安裝後不需要編譯器、Python 或網路服務。
 
 ## 安裝與試用
@@ -28,7 +30,7 @@
 
 ## 建置與安裝
 
-開發需要 **Free Pascal 3.2.2、Xcode 命令列工具與 Python 3.11+**，不依賴 Lazarus/LCL。準備 [Cassotis Lexicon v1.25.0](https://github.com/shenmin/cassotis-lexicon/tree/v1.25.0) 的產生資產，將 `CASSOTIS_LEXICON_ROOT` 指向自己的詞庫目錄（`/path/to/...` 為佔位路徑）：
+開發需要 **Free Pascal 3.2.2、Xcode 命令列工具與 Python 3.11+**，不依賴 Lazarus/LCL。準備 [Cassotis Lexicon v1.26.1](https://github.com/shenmin/cassotis-lexicon/tree/v1.26.1) 的產生資產，將 `CASSOTIS_LEXICON_ROOT` 指向自己的詞庫目錄（`/path/to/...` 為佔位路徑）：
 
 ```sh
 export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
@@ -46,7 +48,7 @@ export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
 
 發行驗證涵蓋核心輸入行為、模型執行、詞庫匯入、IPC、組字輸入、故障復原與設定儲存，並驗證原生文字控制項、WebKit、Chrome、Electron 和 Terminal 中的實際輸入。
 
-完整基準測試已通過所有固定門檻。長句 Top1 / Top2 為 11,695 / 12,835，與 Windows 1.25.0 分別相差 −3 / +5；兩套短詞排序與短詞補全簽章完全對齊。長句補全在正式環境的 50 ms 預算與無補全時限下，均為 413 次命中、淨節省 952 次按鍵，與 Windows 準確率對照相差 7 次按鍵。長句查詢平均／P95 延遲為 78.984 / 151 ms，有上下文的短詞為 7.606 / 18 ms。完整評分方法、各平台對照與效能範圍請見 [BENCHMARK.md](BENCHMARK.md)。原始碼散布包含執行元件與建置工具；測試程式、桌面自動化、基準工具、語料與逐例診斷不隨原始碼散布。
+本輪通過 397 項核心回歸和 2,176 條簡繁詞庫案例。完整語料基準已按 Windows v1.26.1 標籤公布的數據核對通過：長句 Top1/Top2 為 **11,968 / 12,954**（−6 / +7），有上下文短詞為 **61,860 / 63,549**（一致），短詞 Tab 命中 **9,420**（+1）。兩種預算下的長句補全均為 **414** 命中、**960** 淨節鍵（+4 / −7）。方法、計時與驗證範圍請見 [BENCHMARK.md](BENCHMARK.md)。測試程式、桌面自動化、基準工具、語料與逐例診斷不隨公開原始碼分發。
 
 ## 原始碼與授權
 

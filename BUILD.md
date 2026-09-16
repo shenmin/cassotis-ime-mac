@@ -10,15 +10,15 @@
 ./scripts/check_environment.sh
 ```
 
-词库是独立的 [Cassotis Lexicon](https://github.com/shenmin/cassotis-lexicon) 项目。下载或检出其 v1.25.0 版本后，用环境变量指定位置，无需放在固定目录或本仓库旁边：
+词库是独立的 [Cassotis Lexicon](https://github.com/shenmin/cassotis-lexicon) 项目。下载或检出其 v1.26.1 版本后，用环境变量指定位置，无需放在固定目录或本仓库旁边：
 
 ```sh
 export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
 ```
 
-该目录必须包含 `data/generated/` 下简繁两套共 24 个生成文本。构建时按 `data/lexicon-inputs.json` 验证输入 SHA-256，再导入 schema 24 数据库；基础词条分别为 213,290 / 216,505。词库生成过程和许可见词库项目自身的文档。
+该目录必须包含 `data/generated/` 下简繁两套共 24 个生成文本。构建时按 `data/lexicon-inputs.json` 验证输入 SHA-256，再导入 schema 24 数据库；基础词条分别为 213,359 / 216,574。词库生成过程和许可见词库项目自身的文档。
 
-六个 ONNX 模型、词表和索引已随源码提供，`data/runtime-assets.sha256` 记录模型和数据库 schema 的校验值。首次构建会下载官方 ONNX Runtime 1.20.1 arm64 发行包，核对固定 SHA-256 后解压。已安装的输入法无需编译器、Python、联网推理或另外下载模型。
+九个 ONNX 模型、词表和索引已随源码提供，`data/runtime-assets.sha256` 记录模型和数据库 schema 的校验值。首次构建会下载官方 ONNX Runtime 1.20.1 arm64 发行包，核对固定 SHA-256 后解压。已安装的输入法无需编译器、Python、联网推理或另外下载模型。
 
 ## 构建
 
@@ -65,3 +65,5 @@ export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
 省略 `--notary-profile` 时生成 `-signed` 包，表示 Developer ID 已签名但未公证。证书、私钥和钥匙串配置由构建者自行管理。打包器使用暂存副本，不修改已安装应用。
 
 评分方法、测试环境和汇总结果见 [BENCHMARK.md](BENCHMARK.md)。测试程序、桌面自动化、基准工具、语料和逐例诊断不随源码分发。
+
+Application assembly projects model manifests onto the same runtime-field allowlist as source export. Runtime thresholds, model hashes and licensing remain intact; training paths and evaluation records are excluded from the installed bundle.

@@ -4,7 +4,7 @@ https://github.com/shenmin/cassotis-lexicon
 The project README declares CC BY-SA 4.0 for the dictionary.
 The accompanying sources.public.yml identifies upstream sources and their licenses.
 Cassotis macOS imports the generated lexical and language-model files into SQLite schema 24 without retraining the data.
-The input files are from Lexicon 1.25.0; their SHA-256 hashes are recorded in data/lexicon-inputs.json. Build output records are written to build/dictionaries/*.json.
+The input files are from Lexicon 1.26.1; their SHA-256 hashes are recorded in data/lexicon-inputs.json. Build output records are written to build/dictionaries/*.json.
 
 Creative Commons Attribution-ShareAlike 4.0 International legal code:
 https://creativecommons.org/licenses/by-sa/4.0/legalcode

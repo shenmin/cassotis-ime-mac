@@ -6,7 +6,7 @@ Cassotis IME for macOS builds on the Windows and Linux versions and Cassotis Lex
 
 [Website](https://www.yanquan.org/mac) · [Downloads](https://github.com/shenmin/cassotis-ime-mac/releases) · [Windows](https://github.com/shenmin/cassotis-ime) · [Linux](https://github.com/shenmin/cassotis-ime-linux)
 
-A native Chinese Pinyin input method for macOS, with an **InputMethodKit / AppKit frontend and a separate Free Pascal engine process**. The shared production engine follows Windows 1.25.0 and uses the Lexicon 1.25.0 dictionaries and the same local models. Future updates use the Windows version as their baseline.
+A native Chinese Pinyin input method for macOS, with an **InputMethodKit / AppKit frontend and a separate Free Pascal engine process**. The shared production engine follows Windows 1.26.1 and uses the Lexicon 1.26.1 dictionaries and the same local models. Future updates use the Windows version as their baseline.
 
 Version **0.1.0** (build **1**) targets Apple Silicon. The deployment target is macOS 14+; release validation was performed on an M2 Pro running macOS 26.6.2. See [COMPATIBILITY.md](COMPATIBILITY.md) for the validation status of other systems and architectures.
 
@@ -18,6 +18,8 @@ Version **0.1.0** (build **1**) targets Apple Silicon. The deployment target is 
 - A native candidate window and settings interface, a single horizontal candidate row without wrapping, a default font size of 14 points, eight color options, and a live preview. The candidate window keeps focus in the application receiving input.
 - A brief animated bubble beside the caret shows the Cassotis logo beside “中” (Chinese) or “英” (English), avoids nearby system cursor indicators, and appears when changing modes or switching from another input method to Cassotis. It dismisses when typing starts.
 - Settings categories in a sidebar, font-name completion, and direct key recording for five configurable shortcuts. Confirmed choices save automatically; macOS system shortcuts and secure password fields retain their normal behavior.
+- Joint local sentence repair with bilateral verification, repaired-prefix reuse for Tab completions, and stable candidates while typing or deleting incomplete initials.
+- Correct Ziguang `sh` / `zh` / `ch` decoding (`song` / `zong` / `cong`), conservative diagnostics for invalid Pinyin and repeated vowels, with red error ranges in the candidate footer, and simplified/traditional display of shared learned words.
 - All inference runs locally on the CPU through ONNX Runtime. The installed input method needs no compiler, Python installation, or online service.
 
 ## Install and Try
@@ -28,7 +30,7 @@ The graphical installer shows progress, preserves settings and learned words dur
 
 ## Build and Install
 
-Development requires **Free Pascal 3.2.2, Xcode command-line tools, and Python 3.11+**. Lazarus/LCL is not required. Obtain the generated assets from [Cassotis Lexicon v1.25.0](https://github.com/shenmin/cassotis-lexicon/tree/v1.25.0) and point `CASSOTIS_LEXICON_ROOT` to your checkout (`/path/to/...` is a placeholder):
+Development requires **Free Pascal 3.2.2, Xcode command-line tools, and Python 3.11+**. Lazarus/LCL is not required. Obtain the generated assets from [Cassotis Lexicon v1.26.1](https://github.com/shenmin/cassotis-lexicon/tree/v1.26.1) and point `CASSOTIS_LEXICON_ROOT` to your checkout (`/path/to/...` is a placeholder):
 
 ```sh
 export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
@@ -46,7 +48,7 @@ By default, Shift switches between Chinese and English input, Space or a number 
 
 Release validation covers core behavior, model execution, dictionary imports, IPC, composition, recovery and settings persistence, along with real input in native text controls, WebKit, Chrome, Electron and Terminal.
 
-The full benchmark passed all fixed acceptance thresholds. Long-sentence Top1 / Top2 counts are 11,695 / 12,835, differing from Windows 1.25.0 by −3 / +5. Both short-word ranking suites and the short-word completion signatures match exactly. Long-sentence completion records 413 hits and 952 net keystrokes saved with both the production 50 ms completion budget and no completion time limit, differing from the Windows accuracy reference by 7 keystrokes. Long-sentence query mean / P95 latency is 78.984 / 151 ms; context-aware short-word latency is 7.606 / 18 ms. See [BENCHMARK.md](BENCHMARK.md) for the full protocols, platform comparisons, and performance scope. The source distribution contains the runtime and build tools. Test programs, desktop automation, benchmark tools, corpora, and per-case diagnostics are not included.
+The upgrade passes 397 core regressions and 2,176 simplified/traditional dictionary cases. Full corpus benchmarks pass against the measurements published in the Windows v1.26.1 README: long-sentence Top1/Top2 are **11,968 / 12,954** (−6 / +7), context-enabled short words are **61,860 / 63,549** (identical), and short-word Tab completion has **9,420** hits (+1). Both long-completion budgets produce **414** hits and **960** net keys saved (+4 / −7). See [BENCHMARK.md](BENCHMARK.md) for methodology, timings and scope. Test programs, desktop automation, benchmark tools, corpora, and per-case diagnostics are not included in the source distribution.
 
 ## Source and License
 

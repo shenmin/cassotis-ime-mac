@@ -100,6 +100,7 @@ CassotisCandidateColors CassotisColors(NSInteger theme, NSAppearance *appearance
 @property(nonatomic, strong) NSView *footer;
 @property(nonatomic, strong) NSView *separator;
 @property(nonatomic, strong) NSButton *completion;
+@property(nonatomic, strong) NSTextField *warning;
 @property(nonatomic, strong) NSImageView *logo;
 @property(nonatomic, strong) NSTextField *version;
 @end
@@ -141,7 +142,15 @@ CassotisCandidateColors CassotisColors(NSInteger theme, NSAppearance *appearance
     self.logo.frame=NSMakeRect(brandX,floor((self.rowHeight-20)/2),20,20);
     self.version.frame=NSMakeRect(brandX+25,floor((self.rowHeight-self.version.intrinsicContentSize.height)/2),
         versionWidth,self.version.intrinsicContentSize.height);
-    self.completion.frame=NSMakeRect(0,0,MAX(0,brandX-12),self.rowHeight);
+    CGFloat textWidth=MAX(0,brandX-12),completionX=0;
+    if(self.warning) {
+        CGFloat warningWidth=MIN(ceil(self.warning.intrinsicContentSize.width),
+            self.completion.enabled?MAX(0,(textWidth-12)/2):textWidth);
+        CGFloat height=MIN(self.rowHeight,self.warning.intrinsicContentSize.height);
+        self.warning.frame=NSMakeRect(0,floor((self.rowHeight-height)/2),warningWidth,height);
+        completionX=MIN(textWidth,warningWidth+12);
+    }
+    self.completion.frame=NSMakeRect(completionX,0,MAX(0,textWidth-completionX),self.rowHeight);
 }
 @end
 
@@ -173,6 +182,37 @@ static NSString *displayComment(const std::string &raw) {
     // Match Windows format_candidate_line without changing partial commits.
     NSCharacterSet *pinyin=[NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'"];
     return [comment rangeOfCharacterFromSet:pinyin.invertedSet].location==NSNotFound?@"":comment;
+}
+static NSTextField *pinyinWarning(const cassotis::Result &r, NSFont *font, NSColor *muted) {
+    NSString *raw=str(r.preedit);
+    NSRange excerpt=NSMakeRange(NSNotFound,0);
+    for(const auto &span:r.warnings) {
+        if(span.start>raw.length || span.length==0 || span.length>raw.length-span.start) continue;
+        NSUInteger start=span.start>10?span.start-10:0;
+        NSUInteger end=MIN(raw.length,span.start+MIN(NSUInteger(span.length),NSUInteger(24))+10);
+        excerpt=[raw rangeOfComposedCharacterSequencesForRange:NSMakeRange(start,end-start)]; break;
+    }
+    if(excerpt.location==NSNotFound) return nil;
+    // Some IMK clients replace marked-text colors with their own styles. Keep
+    // the diagnostic visible in the existing footer without changing its height.
+    NSString *prefix=excerpt.location?@"拼音  …":@"拼音  ";
+    NSString *text=[prefix stringByAppendingString:[raw substringWithRange:excerpt]];
+    if(NSMaxRange(excerpt)<raw.length) text=[text stringByAppendingString:@"…"];
+    NSMutableAttributedString *value=[[NSMutableAttributedString alloc] initWithString:text
+        attributes:@{NSFontAttributeName:font,NSForegroundColorAttributeName:muted}];
+    for(const auto &span:r.warnings) {
+        if(span.start>raw.length || span.length==0 || span.length>raw.length-span.start) continue;
+        NSRange visible=NSIntersectionRange(excerpt,NSMakeRange(span.start,span.length));
+        if(visible.length) [value addAttributes:@{NSForegroundColorAttributeName:NSColor.systemRedColor,
+            NSUnderlineStyleAttributeName:@(NSUnderlineStyleSingle)}
+            range:NSMakeRange(prefix.length+visible.location-excerpt.location,visible.length)];
+    }
+    NSTextField *field=[NSTextField labelWithAttributedString:value];
+    field.maximumNumberOfLines=1; field.lineBreakMode=NSLineBreakByTruncatingTail;
+    field.cell.usesSingleLineMode=YES; field.cell.wraps=NO;
+    field.accessibilityIdentifier=@"candidate-pinyin-warning";
+    field.accessibilityLabel=@"拼音输入有误"; field.toolTip=raw;
+    return field;
 }
 NSView *CassotisCandidateView(const cassotis::Result &r, CGFloat size, NSString *family,
     NSInteger theme, CGFloat maximumWidth, NSAppearance *appearance,
@@ -232,6 +272,8 @@ NSView *CassotisCandidateView(const cassotis::Result &r, CGFloat size, NSString 
     completion.enabled=!r.completion.empty(); completion.accessibilityIdentifier=@"candidate-completion";
     completion.accessibilityLabel=r.completion.empty()?@"暂无补全":[@"补全，" stringByAppendingString:str(r.completion)];
     [footer addSubview:completion]; background.completion=completion;
+    NSTextField *warning=pinyinWarning(r,font,colors.muted);
+    if(warning) { [footer addSubview:warning]; background.warning=warning; }
     NSString *logoPath=[NSBundle.mainBundle pathForResource:@"Cassotis" ofType:@"png"]?:@"resources/Cassotis.png";
     NSImage *logo=[[NSImage alloc] initWithContentsOfFile:logoPath];
     NSImageView *image=[[NSImageView alloc] init]; image.image=logo;
@@ -244,6 +286,7 @@ NSView *CassotisCandidateView(const cassotis::Result &r, CGFloat size, NSString 
     NSView *separator=[[NSView alloc] init]; separator.wantsLayer=YES; separator.layer.backgroundColor=colors.border.CGColor;
     [background addSubview:separator]; background.separator=separator;
     CGFloat footerWidth=completion.intrinsicContentSize.width+12+20+5+ceil(version.intrinsicContentSize.width);
+    if(warning) footerWidth+=ceil(warning.intrinsicContentSize.width)+12;
     background.preferredSize=NSMakeSize(MIN(maximumWidth,MAX(180,MAX(rowWidth,footerWidth)+16)),2*background.rowHeight+21);
     [background setFrameSize:background.preferredSize]; [background setNeedsLayout:YES]; [background layoutSubtreeIfNeeded];
     return background;

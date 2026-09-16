@@ -15,6 +15,29 @@ int main(int argc,const char **argv) {
             NSString *identifier=(__bridge NSString *)TISGetInputSourceProperty(current,kTISPropertyInputSourceID);
             std::cout<<(identifier.UTF8String?:"")<<std::endl;CFRelease(current);return 0;
         }
+        if([command isEqual:@"launch"]) {
+            if(argc!=2) return 2;
+            NSURL *url=[NSURL fileURLWithPath:[NSHomeDirectory() stringByAppendingPathComponent:@"Library/Input Methods/Cassotis.app"]];
+            if(![[NSBundle bundleWithURL:url].bundleIdentifier isEqual:@"org.cassotis.inputmethod.Cassotis"]) return 1;
+            NSWorkspaceOpenConfiguration *configuration=NSWorkspaceOpenConfiguration.configuration;
+            configuration.activates=NO;
+            __block NSRunningApplication *application=nil;
+            __block NSError *launchError=nil;
+            [NSWorkspace.sharedWorkspace openApplicationAtURL:url configuration:configuration
+                completionHandler:^(NSRunningApplication *app,NSError *error){
+                    dispatch_async(dispatch_get_main_queue(),^{ application=app;launchError=error; });
+                }];
+            NSTimeInterval deadline=NSProcessInfo.processInfo.systemUptime+30;
+            while(!launchError && (!application || (!application.finishedLaunching && !application.terminated)) &&
+                  NSProcessInfo.processInfo.systemUptime<deadline)
+                [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+            if(launchError || !application.finishedLaunching || application.terminated ||
+               ![application.bundleURL.URLByStandardizingPath isEqual:url.URLByStandardizingPath]) {
+                std::cerr<<"Input method launch did not complete"<<std::endl;return 1;
+            }
+            std::cout<<"Input method frontend ready: pid="<<application.processIdentifier<<std::endl;
+            return 0;
+        }
         if([command isEqual:@"prepare-update"]) {
             TISInputSourceRef current=TISCopyCurrentKeyboardInputSource();
             NSString *bundle=(__bridge NSString *)TISGetInputSourceProperty(current,kTISPropertyBundleID);

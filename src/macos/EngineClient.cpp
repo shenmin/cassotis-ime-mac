@@ -52,7 +52,7 @@ Bytes encodeKey(const Key &k) {
     w.u32((k.release?1:0)|(k.repeat?2:0)); w.u64(k.timestamp); w.string(k.text); return w.data;
 }
 Result decodeResult(const Bytes &data) {
-    Reader r(data); require(r.schema()==1,"Unsupported result schema"); Result v;
+    Reader r(data); auto version=r.schema(); require(version==1 || version==2,"Unsupported result schema"); Result v;
     auto handled=r.u8(); require(handled<=1 && r.u16()==0,"Invalid result flags"); v.handled=handled;
     auto flags=r.u8(); require((flags&~1)==0,"Invalid result flags"); v.pending=flags&1;
     v.selected=int32_t(r.u32()); v.page=int32_t(r.u32()); v.pages=int32_t(r.u32()); auto error=r.u32();
@@ -62,6 +62,19 @@ Result decodeResult(const Bytes &data) {
         Candidate c; c.source=r.u8(); c.kind=r.u8(); auto weight=r.u8(), deletable=r.u8();
         require(c.source<=1 && c.kind<=1 && weight<=1 && deletable<=1,"Invalid candidate flags"); c.deletable=deletable;
         for(int j=0;j<4;++j) r.u32(); c.text=r.string(); c.comment=r.string(); v.candidates.push_back(c);
+    }
+    if(version==2) {
+        auto count=r.u32(); require(count<=1024,"Too many preedit warnings");
+        size_t units=0;
+        for(unsigned char c:v.preedit) if((c&0xc0)!=0x80) units+=c>=0xf0?2:1;
+        uint32_t previous=0;
+        for(uint32_t i=0;i<count;++i) {
+            PreeditWarning span; span.start=r.u32(); span.length=r.u32(); span.kind=r.u8();
+            require(r.u8()==0 && r.u16()==0,"Invalid warning flags");
+            require(span.kind<=1 && span.start>=previous && span.length>0 &&
+                span.start<=units && span.length<=units-span.start,"Invalid preedit warning range");
+            previous=span.start+span.length; v.warnings.push_back(span);
+        }
     }
     r.end(); require(v.selected>=-1 && v.selected<int32_t(count),"Invalid candidate selection");
     require(v.page>=0 && v.pages>=0 && (v.pages==0 || v.page<v.pages),"Invalid candidate page");

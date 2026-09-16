@@ -13,7 +13,7 @@ uses
     SyncObjs,
     Generics.Collections,
     Dynlibs,
-    nc_local_repair_host,
+    nc_local_repair_host, nc_dictionary_intf, nc_local_repair_guard,
     nc_engine_intf;
 
 const
@@ -58,7 +58,7 @@ type
     end;
 
     TncPinyinTransformerHostReranker = class(TInterfacedObject,
-        IncLongNeuralReranker, IncLongLocalRepair, IncLongLocalRepairPolicy)
+        IncLongNeuralReranker, IncLongLocalRepair, IncLongLocalRepairPolicy, IncLongJointRepair)
     private type
         TncPtCreate = function(const model_path: PAnsiChar;
             const intra_threads: Integer; const error_text: PAnsiChar;
@@ -185,6 +185,11 @@ type
             const document_key, preceding_text: string;
             out repaired_text, aligned_pinyin: string;
             out minimum_word_ratio: Double): Boolean;
+        function joint_ready: Boolean;
+        function try_finalize(const dictionary: TncDictionaryProvider;
+            const query_text, draft, path, current, second, aligned_pinyin: string;
+            const document_key, preceding_text: string;
+            out selected: TncValidatedRepairPath): Boolean;
         function wait_until_ready(const timeout_ms: Cardinal): Boolean;
         function last_error: string;
         procedure set_audit_enabled(const value: Boolean);
@@ -2134,6 +2139,22 @@ begin
     Result := (m_local_repair <> nil) and
         m_local_repair.try_repair(query_text, draft_text, document_key,
             preceding_text, repaired_text, aligned_pinyin, minimum_word_ratio);
+end;
+
+function TncPinyinTransformerHostReranker.joint_ready: Boolean;
+begin
+    Result := (m_local_repair <> nil) and m_local_repair.joint_ready;
+end;
+
+function TncPinyinTransformerHostReranker.try_finalize(
+    const dictionary: TncDictionaryProvider;
+    const query_text, draft, path, current, second, aligned_pinyin: string;
+    const document_key, preceding_text: string;
+    out selected: TncValidatedRepairPath): Boolean;
+begin
+    Result := (m_local_repair <> nil) and m_local_repair.try_finalize(dictionary,
+        query_text, draft, path, current, second, aligned_pinyin,
+        document_key, preceding_text, selected);
 end;
 
 end.

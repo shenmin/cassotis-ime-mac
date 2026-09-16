@@ -314,11 +314,18 @@ type
         timestamp_ms: QWord;
     end;
 
+    TncPreeditWarningSpan = record
+        start_index, length: Integer; // UTF-16 offsets in the full marked text.
+        kind: Byte; // 0: invalid input; 1: repeated vowel.
+    end;
+    TncPreeditWarningSpans = TArray<TncPreeditWarningSpan>;
+
     TncEngineResult = record
         handled: Boolean;
         async_pending: Boolean;
         commit_text: string;
         preedit_text: string;
+        preedit_warnings: TncPreeditWarningSpans;
         query_text: string;
         candidates: TncCandidateList;
         selected_index: Integer;
@@ -420,6 +427,7 @@ begin
     value.async_pending := False;
     value.commit_text := '';
     value.preedit_text := '';
+    value.preedit_warnings := nil;
     value.query_text := '';
     SetLength(value.candidates, 0);
     value.selected_index := -1;
