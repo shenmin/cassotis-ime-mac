@@ -2,6 +2,7 @@
 
 ## 0.1.0 (build 1)
 
+- Use a transparent logo in the macOS input-source switcher and menu bar; preserve the white-backed logo in Cassotis's Chinese/English status bubble.
 - Align the engine and dictionaries with Windows / Cassotis Lexicon v1.27.0; retain macOS 0.1.0 and build 1.
 - Validate reused Pinyin paths against current syllable boundaries, restore five-syllable decoding, and bound cold character-LM work and exact-prefix learning bonuses.
 - Offer an exact-word Tab join when no prediction is available, without learning the joined text. Show joins in the normal text color and predictive continuations in the theme accent color.
