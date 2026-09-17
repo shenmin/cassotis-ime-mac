@@ -402,6 +402,7 @@
     NSInteger count=MIN(9,MAX(3,_pageSize.indexOfSelectedItem+3));
     for(NSInteger i=0;i<count;++i) result.candidates.push_back({samples[i],"",0,0,false});
     result.completion="落霞与孤鹜齐飞";
+    result.completionSource=cassotis::CompletionSource::BaseExact;
     CGFloat width=_preview.bounds.size.width?:500;
     NSView *content=CassotisCandidateView(result,size,_fontFamily.stringValue,_theme.indexOfSelectedItem,
         width,self.window.effectiveAppearance,nil,nullptr,nullptr,0,(uint8_t)_completionKey.indexOfSelectedItem);

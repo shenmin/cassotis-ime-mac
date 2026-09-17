@@ -33,10 +33,12 @@ struct Candidate {
     bool deletable = false;
 };
 struct PreeditWarning { uint32_t start = 0, length = 0; uint8_t kind = 0; };
+enum class CompletionSource : uint8_t { None, UserExact, BaseExact, Transition, LongTransition, LongNeural, DocumentCopy, ExactTailFallback };
 struct Result {
     bool handled = false, pending = false;
     int32_t selected = -1, page = 0, pages = 0;
     std::string commit, preedit, query, completion;
+    CompletionSource completionSource = CompletionSource::None;
     std::vector<Candidate> candidates;
     std::vector<PreeditWarning> warnings;
 };

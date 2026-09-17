@@ -723,6 +723,7 @@ var
     writer: TncIpcPayloadWriter;
     candidate: TncCandidate;
     result_flags: Byte;
+    schema_version: Word;
     span: TncPreeditWarningSpan;
     last_end: Integer;
 begin
@@ -730,9 +731,13 @@ begin
         raise EncIpcPayloadError.Create('Engine result has too many candidates');
     writer := TncIpcPayloadWriter.Create;
     try
-        if Length(engine_result.preedit_warnings) > 0 then
-            WritePayloadHeaderVersion(writer, 2)
-        else WritePayloadHeader(writer);
+        schema_version := 1;
+        if Length(engine_result.preedit_warnings) > 0 then schema_version := 2;
+        if engine_result.completion_source <> okcs_none then schema_version := 3;
+        if (Ord(engine_result.completion_source) > Ord(High(TncOneKeyCompletionSource))) or
+            ((schema_version = 3) and (engine_result.completion_text = '')) then
+            raise EncIpcPayloadError.Create('Invalid completion source');
+        WritePayloadHeaderVersion(writer, schema_version);
         writer.WriteBoolean(engine_result.handled);
         writer.WriteUInt16(0);
         result_flags := 0;
@@ -763,7 +768,7 @@ begin
             writer.WriteString(candidate.text);
             writer.WriteString(candidate.comment);
         end;
-        if Length(engine_result.preedit_warnings) > 0 then
+        if schema_version >= 2 then
         begin
             if Length(engine_result.preedit_warnings) > 1024 then
                 raise EncIpcPayloadError.Create('Too many preedit warnings');
@@ -784,6 +789,12 @@ begin
                 last_end := span.start_index + span.length;
             end;
         end;
+        if schema_version >= 3 then
+        begin
+            writer.WriteByte(Ord(engine_result.completion_source));
+            writer.WriteByte(0);
+            writer.WriteUInt16(0);
+        end;
         Result := writer.Finish;
     finally
         writer.Free;
@@ -798,7 +809,7 @@ var
     warning_count: Cardinal;
     warning_index, last_end: Integer;
     span: TncPreeditWarningSpan;
-    warning_reserved: Byte;
+    warning_reserved, completion_source: Byte;
     result_flags: Byte;
     candidate_count: Cardinal;
     candidate_index: Integer;
@@ -813,7 +824,7 @@ begin
     reader := TncIpcPayloadReader.Create(payload);
     try
         Result := ReadPayloadHeaderVersion(reader, version) and
-            ((version = 1) or (version = 2)) and
+            ((version >= 1) and (version <= 3)) and
             reader.ReadBoolean(engine_result.handled) and
             reader.ReadUInt16(reserved16) and reader.ReadByte(result_flags) and
             reader.ReadInt32(engine_result.selected_index) and
@@ -826,7 +837,7 @@ begin
             reader.ReadString(engine_result.completion_text) and
             reader.ReadString(engine_result.error_text) and
             reader.ReadUInt32(candidate_count);
-        if (version <> 1) and (version <> 2) then
+        if (version < 1) or (version > 3) then
             reader.SetError('Unsupported engine result version');
         if Result and ((reserved16 <> 0) or
             ((result_flags and not c_engine_result_known_flags) <> 0)) then
@@ -893,7 +904,7 @@ begin
                             rule);
             end;
         end;
-        if Result and (version = 2) then
+        if Result and (version >= 2) then
         begin
             Result := reader.ReadUInt32(warning_count) and (warning_count <= 1024);
             if Result then SetLength(engine_result.preedit_warnings, warning_count);
@@ -917,6 +928,20 @@ begin
             end;
             if not Result then reader.SetError('Invalid preedit warning payload');
         end;
+        if Result and (version >= 3) then
+        begin
+            Result := reader.ReadByte(completion_source) and
+                reader.ReadByte(warning_reserved) and reader.ReadUInt16(reserved16);
+            Result := Result and (completion_source > Ord(okcs_none)) and
+                (completion_source <= Ord(High(TncOneKeyCompletionSource))) and
+                (warning_reserved = 0) and (reserved16 = 0) and
+                (engine_result.completion_text <> '');
+            if Result then
+                engine_result.completion_source := TncOneKeyCompletionSource(completion_source)
+            else reader.SetError('Invalid completion source payload');
+        end
+        else if Result and (engine_result.completion_text <> '') then
+            engine_result.completion_source := okcs_base_exact;
         Result := Result and reader.Finish(error_text);
         if not Result then
         begin

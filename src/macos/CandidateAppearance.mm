@@ -267,7 +267,9 @@ NSView *CassotisCandidateView(const cassotis::Result &r, CGFloat size, NSString 
     [background addSubview:footer]; background.footer=footer;
     NSString *key=completionKey==1?@"`":@"Tab";
     NSString *prefix=r.completion.empty()?@"":[key stringByAppendingString:@"  "];
-    NSButton *completion=candidateButton(prefix,str(r.completion),@"",font,colors.compound,colors.muted,NO,colors);
+    BOOL predictive=r.completionSource!=cassotis::CompletionSource::None &&
+        r.completionSource!=cassotis::CompletionSource::ExactTailFallback;
+    NSButton *completion=candidateButton(prefix,str(r.completion),@"",font,predictive?colors.compound:colors.text,colors.muted,NO,colors);
     completion.tag=-1; completion.target=target; completion.action=selection;
     completion.enabled=!r.completion.empty(); completion.accessibilityIdentifier=@"candidate-completion";
     completion.accessibilityLabel=r.completion.empty()?@"暂无补全":[@"补全，" stringByAppendingString:str(r.completion)];

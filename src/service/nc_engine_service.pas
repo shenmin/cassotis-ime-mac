@@ -500,7 +500,7 @@ begin
     context.SetCandidates(candidates);
     context.SelectCandidate(FEngine.get_selected_index);
     completion := FEngine.get_one_key_completion;
-    context.SetCompletion(completion.full_pinyin, completion.text);
+    context.SetCompletion(completion.full_pinyin, completion.text, completion.source);
 end;
 
 procedure TncEngineService.PopulateResult(const context: TncEngineContext;
@@ -538,6 +538,7 @@ begin
     engine_result.page_index := FEngine.get_page_index;
     engine_result.page_count := FEngine.get_page_count;
     engine_result.completion_text := context.CompletionText;
+    engine_result.completion_source := context.CompletionSource;
 end;
 
 function TncEngineService.QueueLongNeuralCompletion(

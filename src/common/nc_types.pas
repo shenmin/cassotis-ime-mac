@@ -160,7 +160,8 @@ type
         okcs_transition,
         okcs_long_transition,
         okcs_long_neural,
-        okcs_document_copy
+        okcs_document_copy,
+        okcs_exact_tail_fallback
     );
 
     TncOneKeyCompletion = record
@@ -332,6 +333,7 @@ type
         page_index: Integer;
         page_count: Integer;
         completion_text: string;
+        completion_source: TncOneKeyCompletionSource;
         error_code: Cardinal;
         error_text: string;
     end;
@@ -434,6 +436,7 @@ begin
     value.page_index := 0;
     value.page_count := 0;
     value.completion_text := '';
+    value.completion_source := okcs_none;
     value.error_code := 0;
     value.error_text := '';
 end;

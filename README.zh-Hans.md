@@ -6,7 +6,7 @@
 
 [官网](https://www.yanquan.org/mac) · [下载安装包](https://github.com/shenmin/cassotis-ime-mac/releases) · [Windows](https://github.com/shenmin/cassotis-ime) · [Linux](https://github.com/shenmin/cassotis-ime-linux)
 
-原生 macOS 拼音输入法，使用 **InputMethodKit / AppKit 前端与 Free Pascal 独立引擎**。共享生产引擎对齐 Windows 1.26.1，使用 Lexicon 1.26.1 词库和相同的本地模型。后续更新以 Windows 版为基准。
+原生 macOS 拼音输入法，使用 **InputMethodKit / AppKit 前端与 Free Pascal 独立引擎**。共享生产引擎对齐 Windows 1.27.0，使用 Lexicon 1.27.0 词库和相同的本地模型。后续更新以 Windows 版为基准。
 
 版本 **0.1.0**（build **1**），面向 Apple Silicon。部署目标 macOS 14+，本轮实测为 M2 Pro / macOS 26.6.2；其他系统和架构的资格范围见 [COMPATIBILITY.md](COMPATIBILITY.md)。
 
@@ -20,6 +20,8 @@
 - 左侧分类设置、字体名称补全和直接按键录制的五项快捷键；确定选项后自动保存，保留 macOS 系统组合键和安全密码框行为。
 - 联合局部纠错与双向复核，Tab 补全复用已确认的拼音前缀修正；输入或退格至未完成声母时保持候选稳定。
 - 修复紫光 `sh` / `zh` / `ch`（松 / 总 / 从类音节）解析；对异常拼音和重复元音作保守判断，在候选窗第二行用红色标出错误范围；共享用户词随简繁模式转换显示。
+- 改进五音节解码、缓存路径的精确读音检查和重复选择后的前缀排序。
+- 没有预测提示时，Tab 可精确拼接已输入拼音对应的词；预测提示使用主题强调色，精确拼接使用普通文字色。
 - 所有推理在本机完成，使用 CPU ONNX Runtime；已安装的输入法无需编译器、Python 或联网服务。
 
 ## 安装与试用
@@ -30,7 +32,7 @@
 
 ## 构建与安装
 
-开发需要 **Free Pascal 3.2.2、Xcode 命令行工具、Python 3.11+**，不依赖 Lazarus/LCL。准备 [Cassotis Lexicon v1.26.1](https://github.com/shenmin/cassotis-lexicon/tree/v1.26.1) 的生成资产，将 `CASSOTIS_LEXICON_ROOT` 指向自己的词库目录（`/path/to/...` 为占位路径）：
+开发需要 **Free Pascal 3.2.2、Xcode 命令行工具、Python 3.11+**，不依赖 Lazarus/LCL。准备 [Cassotis Lexicon v1.27.0](https://github.com/shenmin/cassotis-lexicon/tree/v1.27.0) 的生成资产，将 `CASSOTIS_LEXICON_ROOT` 指向自己的词库目录（`/path/to/...` 为占位路径）：
 
 ```sh
 export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
@@ -48,7 +50,7 @@ export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
 
 发行验证覆盖核心输入行为、模型运行、词库导入、IPC、组合输入、故障恢复与设置保存，并验证原生文本控件、WebKit、Chrome、Electron 和 Terminal 中的实际输入。
 
-本轮通过 397 项核心回归和 2,176 条简繁词库用例。完整语料基准已按 Windows v1.26.1 标签公布的数据核对通过：长句 Top1/Top2 为 **11,968 / 12,954**（−6 / +7），有上下文短词为 **61,860 / 63,549**（一致），短词 Tab 命中 **9,420**（+1）。两种预算下的长句补全均为 **414** 命中、**960** 净节键（+4 / −7）。方法、计时和验证范围见 [BENCHMARK.md](BENCHMARK.md)。测试程序、桌面自动化、基准工具、语料和逐例诊断不随公开源码分发。
+本轮通过 460 项核心回归和 2,448 条简繁词库用例。完整语料基准满足 Windows v1.27.0 的冻结计数门槛：长句 Top1/Top2 为 **11,969 / 12,955**（−9 / +0），有上下文短词为 **61,860 / 63,549**，短词 Tab 命中 **9,420**（+1）。两种长句补全预算均通过；50 ms 生产轨为 **429** 预测命中、**6,765** 次预测显示、**980** 净节键。已输入拼音的精确拼接单独计数。方法、计时和验证范围见 [BENCHMARK.md](BENCHMARK.md)。测试程序、桌面自动化、基准工具、语料和逐例诊断不随公开源码分发。
 
 ## 源码与许可
 

@@ -2,6 +2,13 @@
 
 ## 0.1.0 (build 1)
 
+- Align the engine and dictionaries with Windows / Cassotis Lexicon v1.27.0; retain macOS 0.1.0 and build 1.
+- Validate reused Pinyin paths against current syllable boundaries, restore five-syllable decoding, and bound cold character-LM work and exact-prefix learning bonuses.
+- Offer an exact-word Tab join when no prediction is available, without learning the joined text. Show joins in the normal text color and predictive continuations in the theme accent color.
+- Preserve attested compound-prefix highlighting on the five-syllable fast path and carry completion sources through the native protocol.
+- Follow Windows' predictive-only completion statistics and long-sentence Top1/Top2 scoring.
+
+
 - Prevent background macOS input clients from interrupting a composition. Finish launching the new frontend during installation so the first key does not wait on executable verification; restore the previous app if launch fails.
 
 - Align the engine and lexicon with Windows / Cassotis Lexicon v1.26.1.

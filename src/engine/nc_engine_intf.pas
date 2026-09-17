@@ -623,6 +623,7 @@ type
         m_debug_capture_long_one_key_completion_pool: Boolean;
         m_one_key_completion_query_prefix: string;
         m_one_key_completion_score: Integer;
+        m_exact_tail_completion_checked: Boolean;
         m_long_neural_completion_request: TncLongNeuralCompletionRequest;
         m_has_long_neural_completion_request: Boolean;
         m_long_neural_completion_prefix_locked: Boolean;
@@ -993,6 +994,10 @@ type
         procedure apply_short_exact_pair_tail_handoff;
         function get_cached_query_latest_choice_text(
             const query_key: string): string;
+        function get_base_exact_choice_weight_bonus(const query_key: string;
+            const candidate_text: string): Integer;
+        function normalize_learned_prefix_exact_scores(const query_key: string;
+            var candidates: TncCandidateList): Boolean;
         procedure clear_session_learning_after_user_removal;
         function build_candidate_identity_key(const candidate_text: string; const comment_text: string): string;
         procedure clear_segment_path_tracking;
@@ -1048,6 +1053,7 @@ type
             out completion: TncOneKeyCompletion;
             out completion_score: Integer): Boolean;
         procedure refresh_one_key_completion;
+        procedure refresh_exact_tail_completion;
         function accept_one_key_completion: Boolean;
         procedure apply_long_complete_candidate_pool(
             var candidates: TncCandidateList;
@@ -1319,7 +1325,8 @@ uses
     nc_one_key_completion_topk_model,
     nc_one_key_completion_ncgpt_model,
     nc_one_key_completion_ncgpt_sparse_audit_model,
-    nc_tab_repair_projection;
+    nc_tab_repair_projection,
+    nc_tab_exact_fallback;
 
 const
     c_suppress_nonlexicon_complete_long_candidates = True;
@@ -2366,7 +2373,7 @@ begin
                 provider_ok := m_dictionary.get_char_lm_short_context_scores(
                     left_context, texts, scores);
             clsm_span:
-                provider_ok := m_dictionary.get_char_lm_span_scores(
+                provider_ok := nc_get_char_lm_span_scores(m_dictionary,
                     texts, scores);
             clsm_reverse:
                 provider_ok := m_dictionary.get_char_reverse_lm_suffix_scores(
@@ -2434,7 +2441,7 @@ begin
             provider_ok := m_dictionary.get_char_lm_short_context_scores(
                 left_context, missing_texts, missing_scores);
         clsm_span:
-            provider_ok := m_dictionary.get_char_lm_span_scores(
+            provider_ok := nc_get_char_lm_span_scores(m_dictionary,
                 missing_texts, missing_scores);
         clsm_reverse:
             provider_ok := m_dictionary.get_char_reverse_lm_suffix_scores(
@@ -3381,6 +3388,86 @@ begin
     end;
 end;
 
+function TncEngine.get_base_exact_choice_weight_bonus(const query_key: string;
+    const candidate_text: string): Integer;
+const
+    c_min_repeated_choice_evidence = 320;
+begin
+    Result := 0;
+    if (m_dictionary = nil) or (candidate_text = '') or
+        (not is_full_pinyin_key(query_key)) then Exit;
+    Result := m_dictionary.get_query_choice_bonus(query_key, candidate_text);
+    if Result < c_min_repeated_choice_evidence then Result := 0;
+end;
+
+function TncEngine.normalize_learned_prefix_exact_scores(const query_key: string;
+    var candidates: TncCandidateList): Boolean;
+var
+    idx: Integer;
+    learned: Boolean;
+    candidate: TncCandidate;
+
+    function compare(const left, right: TncCandidate): Integer;
+    begin
+        if (left.source = cs_user) <> (right.source = cs_user) then
+        begin
+            if left.source = cs_user then Exit(-1);
+            Exit(1);
+        end;
+        if left.score <> right.score then
+        begin
+            if left.score > right.score then Exit(-1);
+            Exit(1);
+        end;
+        Result := CompareStr(left.text, right.text);
+    end;
+
+    procedure quicksort(const left, right: Integer);
+    var i, j: Integer; pivot, item: TncCandidate;
+    begin
+        i := left;
+        j := right;
+        pivot := candidates[(left + right) div 2];
+        repeat
+            while compare(candidates[i], pivot) < 0 do Inc(i);
+            while compare(candidates[j], pivot) > 0 do Dec(j);
+            if i <= j then
+            begin
+                item := candidates[i]; candidates[i] := candidates[j]; candidates[j] := item;
+                Inc(i); Dec(j);
+            end;
+        until i > j;
+        if left < j then quicksort(left, j);
+        if i < right then quicksort(i, right);
+    end;
+begin
+    Result := False;
+    if (m_dictionary = nil) or (Length(candidates) = 0) or
+        (not is_full_pinyin_key(query_key)) then Exit;
+    learned := False;
+    for candidate in candidates do
+        if (candidate.source = cs_rule) and candidate.has_dict_weight and
+            (candidate.comment = '') and
+            (m_dictionary.get_query_choice_bonus(query_key, candidate.text) > 0) then
+        begin
+            learned := True;
+            Break;
+        end;
+    if not learned then Exit;
+
+    // SQLite's retrieval/latest-choice bonuses are not durable word weights.
+    // Use the same bounded, exact-key learning as a standalone short query.
+    // Copy before sorting: other paths still own the original lookup cache.
+    candidates := Copy(candidates);
+    for idx := 0 to High(candidates) do
+        if (candidates[idx].source = cs_rule) and
+            candidates[idx].has_dict_weight and (candidates[idx].comment = '') then
+            candidates[idx].score := candidates[idx].dict_weight +
+                get_base_exact_choice_weight_bonus(query_key, candidates[idx].text);
+    if Length(candidates) > 1 then quicksort(0, High(candidates));
+    Result := True;
+end;
+
 procedure TncEngine.clear_session_learning_after_user_removal;
 begin
     // A user deletion is an explicit negative signal. Query/latest/path/context
@@ -4290,13 +4377,12 @@ begin
         Exit;
     end;
 
-    m_last_ranked_query_key := normalized_query;
-
     if Length(m_candidates) = 0 then
     begin
         if (previous_query = '') or
             (Copy(normalized_query, 1, Length(previous_query)) <> previous_query) then
         begin
+            m_last_ranked_query_key := '';
             m_last_ranked_top_path := '';
         end;
         Exit;
@@ -4313,11 +4399,14 @@ begin
         if (previous_query = '') or
             (Copy(normalized_query, 1, Length(previous_query)) <> previous_query) then
         begin
+            m_last_ranked_query_key := '';
             m_last_ranked_top_path := '';
         end;
         Exit;
     end;
 
+    // Keep the query and its path together when an unfinished tail has no path.
+    m_last_ranked_query_key := normalized_query;
     m_last_ranked_top_path := top_path;
     path_confidence_score := get_candidate_path_confidence_score(m_candidates[0]);
     if path_confidence_score >= 180 then
@@ -5898,6 +5987,7 @@ begin
     SetLength(m_debug_long_one_key_completion_pool, 0);
     m_one_key_completion_query_prefix := '';
     m_one_key_completion_score := Low(Integer);
+    m_exact_tail_completion_checked := False;
     m_long_neural_completion_request :=
         Default(TncLongNeuralCompletionRequest);
     m_has_long_neural_completion_request := False;
@@ -8850,6 +8940,36 @@ begin
     apply_long_completion;
 end;
 
+procedure TncEngine.refresh_exact_tail_completion;
+var completion: TncOneKeyCompletion;
+begin
+    if (m_one_key_completion.text <> '') and
+        (m_one_key_completion.source <> okcs_exact_tail_fallback) then Exit;
+    if (not m_allow_one_key_completion_lookup) or (m_dictionary = nil) or
+        (m_config.input_mode <> im_chinese) or (m_confirmed_text <> '') or
+        m_has_pending_commit or (m_page_index <> 0) or is_shuangpin_input or
+        is_fuzzy_pinyin_active or (not m_visible_candidates_cache_valid) or
+        (m_visible_candidates_cache_composition_text <> m_composition_text) or
+        (m_visible_candidates_cache_lookup_key <> m_last_lookup_key) or
+        (m_visible_candidates_cache_page_index <> 0) then
+    begin
+        if m_one_key_completion.source = okcs_exact_tail_fallback then
+            m_one_key_completion := Default(TncOneKeyCompletion);
+        Exit;
+    end;
+    if m_exact_tail_completion_checked then Exit;
+    m_exact_tail_completion_checked := True;
+    m_one_key_completion := Default(TncOneKeyCompletion);
+    // Read the settled visible prefix. Never run candidate ranking from Tab.
+    if nc_try_exact_tail_completion(m_dictionary, m_composition_text,
+        m_visible_candidates_cache, completion) then
+    begin
+        m_one_key_completion := completion;
+        m_one_key_completion_query_prefix := normalize_pinyin_text(m_composition_text);
+        m_one_key_completion_score := Low(Integer);
+    end;
+end;
+
 function TncEngine.get_one_key_completion_for_commit: TncOneKeyCompletion;
 var document_key: string;
 begin
@@ -8909,7 +9029,7 @@ begin
     end
     else if (m_dictionary <> nil) and
         (not (m_one_key_completion.source in
-        [okcs_long_transition, okcs_long_neural])) and
+        [okcs_long_transition, okcs_long_neural, okcs_exact_tail_fallback])) and
         (m_one_key_completion_query_prefix <> '') and
         (completion_pinyin <> '') then
     begin
@@ -8919,7 +9039,7 @@ begin
     end;
     if m_one_key_completion.source in
         [okcs_long_transition, okcs_long_neural,
-        okcs_document_copy] then
+        okcs_document_copy, okcs_exact_tail_fallback] then
     begin
         clear_one_key_completion_feedback_target;
     end
@@ -8934,10 +9054,8 @@ begin
             completion_text);
     end;
 
-    // The prefix is intentionally incomplete, so never persist it as the
-    // pronunciation of the completed lexicon word. Keep the real full pinyin
-    // for later context bookkeeping instead of associating the text with the
-    // typed prefix.
+    // Neither predicted suffixes nor exact-tail joins create user words.
+    // Keep the full spelling only for subsequent context bookkeeping.
     set_pending_commit(completion_text, '', False, '', True, '', False,
         False, '', True);
     if completion_pinyin <> '' then
@@ -31132,6 +31250,30 @@ var
         candidate_text_local: string;
         candidate_units_local: Integer;
         candidate_weight_local: Integer;
+
+        function is_normalized_learned_exact_prefix_local(
+            const candidate_value: TncCandidate): Boolean;
+        var
+            full_key, tail_key, head_key: string;
+            exact_results: TncCandidateList;
+            exact_candidate: TncCandidate;
+        begin
+            Result := False;
+            if (candidate_value.source <> cs_rule) or
+                (not candidate_value.has_dict_weight) then Exit;
+            full_key := normalize_pinyin_text(lookup_text);
+            tail_key := normalize_pinyin_text(candidate_value.comment);
+            if (tail_key = '') or (Length(tail_key) >= Length(full_key)) or
+                (Copy(full_key, Length(full_key) - Length(tail_key) + 1,
+                MaxInt) <> tail_key) then Exit;
+            head_key := Copy(full_key, 1, Length(full_key) - Length(tail_key));
+            if (not lookup_exact_full_pinyin_cached_local(head_key, exact_results)) or
+                (not normalize_learned_prefix_exact_scores(head_key, exact_results)) then Exit;
+            for exact_candidate in exact_results do
+                if (exact_candidate.source = cs_rule) and
+                    (exact_candidate.comment = '') and
+                    (exact_candidate.text = candidate_value.text) then Exit(True);
+        end;
     begin
         if Length(candidates) = 0 then
         begin
@@ -31159,7 +31301,11 @@ var
                         candidates[in_idx_local].dict_weight;
                 end;
                 if (candidates[in_idx_local].source <> cs_user) and
-                    (candidate_weight_local < c_min_phrase_prefix_weight) then
+                    (candidate_weight_local < c_min_phrase_prefix_weight) and
+                    // This cutoff historically used retrieval bonuses. A raw
+                    // learned-prefix weight must not erase an admitted exact.
+                    (not is_normalized_learned_exact_prefix_local(
+                    candidates[in_idx_local])) then
                 begin
                     Continue;
                 end;
@@ -69258,7 +69404,7 @@ var
             Exit;
         end;
 
-        if input_syllable_count <= 5 then
+        if input_syllable_count <= 4 then
         begin
             record_chain_search_status_local(c_chain_search_status_short_query);
             Exit;
@@ -80108,6 +80254,62 @@ var
             out_results);
     end;
 
+    function cached_path_prefix_matches_syllables_local(
+        const path_parts: TArray<string>; const last_part: Integer;
+        const syllables: TncPinyinParseResult; const expected_units: Integer): Boolean;
+    var
+        part_idx: Integer;
+        unit_idx: Integer;
+        offset: Integer;
+        units: Integer;
+        part_text: string;
+        part_key: string;
+        syllable_key: string;
+        exact_results: TncCandidateList;
+        candidate: TncCandidate;
+        found: Boolean;
+    begin
+        Result := False;
+        offset := 0;
+        if (m_dictionary = nil) or (last_part < 0) or
+            (last_part > High(path_parts)) or (expected_units <= 0) then Exit;
+        for part_idx := 0 to last_part do
+        begin
+            part_text := Trim(path_parts[part_idx]);
+            units := get_candidate_text_unit_count(part_text);
+            if (units <= 0) or (offset + units > Length(syllables)) then Exit;
+            part_key := '';
+            for unit_idx := offset to offset + units - 1 do
+            begin
+                syllable_key := normalize_pinyin_text(syllables[unit_idx].text);
+                if not is_full_pinyin_key(syllable_key) then Exit;
+                if part_key <> '' then part_key := part_key + '''';
+                part_key := part_key + syllable_key;
+            end;
+
+            // A cached abbreviation or an earlier syllable split is not an
+            // exact edge. Preserve the current boundaries, including inside words.
+            if units = 1 then
+            begin
+                if not m_dictionary.single_char_matches_pinyin(part_key, part_text) then Exit;
+            end
+            else
+            begin
+                if not dictionary_exact_lookup_cached(part_key, exact_results) then Exit;
+                found := False;
+                for candidate in exact_results do
+                    if (candidate.comment = '') and (candidate.text = part_text) then
+                    begin
+                        found := True;
+                        Break;
+                    end;
+                if not found then Exit;
+            end;
+            Inc(offset, units);
+        end;
+        Result := offset = expected_units;
+    end;
+
     function dictionary_fuzzy_lattice_lookup_cached(const pinyin_key: string;
         out out_results: TncCandidateList): Boolean;
     var
@@ -88672,6 +88874,7 @@ var
         cached_candidates: TncCandidateList;
         seen: TDictionary<string, Byte>;
         longer_prefix_candidates: TncCandidateList;
+        normalized_learning: Boolean;
 
         function explicit_prefix_lookup_entry_local(
             const text_value: string): Boolean;
@@ -88798,6 +89001,8 @@ var
                         Continue;
                     end;
                 end;
+                normalized_learning := normalize_learned_prefix_exact_scores(
+                    prefix_key, head_results);
                 prefix_lookup_results := head_results;
 
                 if prefix_count = 1 then
@@ -88902,8 +89107,13 @@ var
                     end;
                     Dec(candidate.score, (Length(syllables_local) - prefix_count) *
                         c_prefix_remaining_penalty);
-                    candidate.dict_weight := base_score;
-                    candidate.has_dict_weight := True;
+                    // Keep legacy retrieval features for unlearned groups;
+                    // learned groups carry only the raw weight, not recency.
+                    if (not normalized_learning) or (not candidate.has_dict_weight) then
+                    begin
+                        candidate.dict_weight := base_score;
+                        candidate.has_dict_weight := True;
+                    end;
 
                     SetLength(out_candidates, Length(out_candidates) + 1);
                     out_candidates[High(out_candidates)] := candidate;
@@ -90452,6 +90662,7 @@ var
                     end;
                 if (not tail_is_exact) or
                     (not dictionary_exact_lookup_cached(head_key, heads)) then Continue;
+                normalize_learned_prefix_exact_scores(head_key, heads);
                 for idx := 0 to Min(High(heads), c_four_syllable_prefix_phrase_limit - 1) do
                 begin
                     if accepted_total >= c_prefix_total_limit then Break;
@@ -90568,6 +90779,7 @@ var
                 begin
                     Continue;
                 end;
+                normalize_learned_prefix_exact_scores(prefix_key, head_results);
                 prefix_lookup_results := head_results;
 
                 if prefix_count = 1 then
@@ -90682,6 +90894,7 @@ var
         cached_candidates: TncCandidateList;
         seen: TDictionary<string, Byte>;
         protected_syllables: TncPinyinParseResult;
+        normalized_learning: Boolean;
 
         function tail_is_single_initial_extension_local(
             const value: string): Boolean;
@@ -90765,6 +90978,8 @@ var
                     Continue;
                 end;
 
+                normalized_learning := normalize_learned_prefix_exact_scores(
+                    prefix_key, head_results);
                 for result_idx := 0 to High(head_results) do
                 begin
                     if (accepted_total >= c_prefix_total_limit) or
@@ -90801,8 +91016,11 @@ var
                     candidate.score := candidate_score + c_prefix_base_bonus +
                         candidate_units * c_prefix_unit_bonus -
                         Length(tail_comment) * c_tail_penalty;
-                    candidate.has_dict_weight := True;
-                    candidate.dict_weight := candidate_score;
+                    if (not normalized_learning) or (not candidate.has_dict_weight) then
+                    begin
+                        candidate.has_dict_weight := True;
+                        candidate.dict_weight := candidate_score;
+                    end;
 
                     SetLength(out_candidates, Length(out_candidates) + 1);
                     out_candidates[High(out_candidates)] := candidate;
@@ -113121,7 +113339,9 @@ var
                     path_units_local);
                 if (path_prefix_key_local = '') or
                     (Copy(normalize_pinyin_text(lookup_text), 1,
-                    Length(path_prefix_key_local)) <> path_prefix_key_local) then
+                    Length(path_prefix_key_local)) <> path_prefix_key_local) or
+                    (not cached_path_prefix_matches_syllables_local(path_parts_local,
+                    local_path_part_count - 1, syllables_local, path_units_local)) then
                 begin
                     Continue;
                 end;
@@ -114824,10 +115044,8 @@ var
             out_text := '';
             out_score := 0;
             if (local_suffix_key = '') or (local_expected_units <= 0) or
-                ((not dictionary_exact_lookup_cached(local_suffix_key,
-                local_results)) and
-                (not dictionary_lookup_cached(local_suffix_key,
-                local_results))) then
+                (not dictionary_exact_lookup_cached(local_suffix_key,
+                local_results)) then
             begin
                 Exit;
             end;
@@ -115211,7 +115429,10 @@ var
             prefix_syllable_count_local);
         if (path_prefix_query_local = '') or
             (Copy(normalized_query_local, 1, Length(path_prefix_query_local)) <>
-            path_prefix_query_local) then
+            path_prefix_query_local) or
+            (not cached_path_prefix_matches_syllables_local(path_parts_local,
+            active_path_part_high_local, syllables_local,
+            prefix_syllable_count_local)) then
         begin
             Exit;
         end;
@@ -125380,12 +125601,10 @@ var
             end;
         end;
         if (m_dictionary <> nil) and has_multi_syllable_input and
-            (delayed_long_decode_mode or (input_syllable_count >= 6) or
-            (has_raw_safe_trailing_initial_typing_state and
-            (input_syllable_count >= 5))) and
             is_full_pinyin_key(lookup_text) and
             (input_syllable_count >= 5) and (input_syllable_count <= 40) and
             ((not m_composition_built_incrementally) or
+            (input_syllable_count = 5) or
             (not should_defer_exact_chain_for_extendable_tail_local) or
             has_reliable_exact_tail_candidate_local(4)) and
             (not all_initial_compact_query) and
@@ -125421,6 +125640,12 @@ var
                 begin
                     ensure_fast_prefix_single_char_partials_visible(m_candidates, 0);
                     ensure_multi_char_partial_precedes_single_char_partial(m_candidates);
+                    // Five-syllable input now reaches this exact-chain fast
+                    // path. Retain the attested 2+2 prefix and its segment
+                    // identity just as the ordinary prefix path does.
+                    ensure_supported_short_four_two_prefix_partial_visible_local(
+                        get_effective_compact_pinyin_syllables(lookup_text),
+                        m_candidates);
                 end;
                 note_debug_helper_elapsed('tplsingle', phase_start_tick);
                 phase_start_tick := nc_monotonic_tick_ms;
@@ -141556,6 +141781,7 @@ begin
     m_visible_candidates_cache_page_index := m_page_index;
     m_visible_candidates_cache_page_size := page_size;
     m_visible_candidates_cache_valid := True;
+    m_exact_tail_completion_checked := False;
     if (Length(candidates) = 0) or (m_selected_index < 0) then
         m_selected_index := 0
     else if m_selected_index >= Length(candidates) then
@@ -161196,26 +161422,9 @@ var
 
         function short_base_exact_dynamic_weight_local(
             const text_value: string): Integer;
-        const
-            c_min_repeated_choice_evidence = 320;
         begin
-            Result := 0;
-            if (text_value = '') or (m_dictionary = nil) or
-                (not is_full_pinyin_key(normalized_pinyin)) then
-            begin
-                Exit;
-            end;
-
-            { The persisted score belongs to this exact pinyin/text pair, so it
-              remains valid even when the engine has left context. Session-only
-              recency, language models and scores learned for another candidate
-              remain excluded. }
-            Result := m_dictionary.get_query_choice_bonus(normalized_pinyin,
+            Result := get_base_exact_choice_weight_bonus(normalized_pinyin,
                 text_value);
-            if Result < c_min_repeated_choice_evidence then
-            begin
-                Result := 0;
-            end;
         end;
 
         function short_exact_effective_weight_local(
@@ -182819,6 +183028,8 @@ var
 
         function partial_prefix_weight_local(
             const candidate_value: TncCandidate): Integer;
+        var
+            prefix_key: string;
         begin
             if candidate_value.has_dict_weight then
             begin
@@ -182827,6 +183038,14 @@ var
             else
             begin
                 Result := candidate_value.score;
+            end;
+            if candidate_value.has_dict_weight and
+                (candidate_value.source = cs_rule) then
+            begin
+                prefix_key := build_display_query_key(0,
+                    get_candidate_text_unit_count(candidate_value.text));
+                Inc(Result, get_base_exact_choice_weight_bonus(prefix_key,
+                    candidate_value.text));
             end;
         end;
 
@@ -187565,6 +187784,8 @@ var
                         Continue;
                     end;
 
+                    normalize_learned_prefix_exact_scores(
+                        direct_prefix_key_local, direct_exact_results_local);
                     direct_found_for_length_local := False;
                     for direct_exact_idx_local := 0 to
                         Min(c_probe_limit - 1,
@@ -187702,6 +187923,8 @@ var
                     Continue;
                 end;
 
+                normalize_learned_prefix_exact_scores(prefix_key_local,
+                    exact_results_local);
                 base_exact_idx_local := exact_text_index_local(
                     Trim(Result[base_idx_local].text));
                 if base_exact_idx_local < 0 then
@@ -192332,6 +192555,7 @@ begin
         refresh_validated_prefix_completion;
         m_repaired_completion_query_key := m_local_repair_query_key;
     end;
+    refresh_exact_tail_completion;
     Result := project_validated_prefix_completion(m_one_key_completion);
     if Result.text <> m_one_key_completion.text then
     begin
@@ -192353,7 +192577,7 @@ begin
     request := Default(TncLongNeuralCompletionRequest);
     Result := m_has_long_neural_completion_request and
         ((m_one_key_completion.text = '') or
-        (m_one_key_completion.source = okcs_long_transition)) and
+        (m_one_key_completion.source in [okcs_long_transition, okcs_exact_tail_fallback])) and
         (m_long_neural_completion_request.query_prefix <> '') and
         (m_long_neural_completion_request.query_syllables <> '') and
         (m_long_neural_completion_request.top1_text <> '') and
@@ -192371,7 +192595,9 @@ begin
     // Only overlap an already prepared fallback request. Experimental repaired
     // anchors must wait for visible repair; exact/static hints need no prefetch.
     Result := (TThread.ProcessorCount >= 8) and
-        (m_page_index = 0) and (m_one_key_completion.text = '') and
+        (m_page_index = 0) and
+        ((m_one_key_completion.text = '') or
+        (m_one_key_completion.source = okcs_exact_tail_fallback)) and
         (GetEnvironmentVariable('CASSOTIS_TAB_REPAIRED_PREFIX') <> '1') and
         (GetEnvironmentVariable('CASSOTIS_TAB_REPAIRED_PREFIX') <> 'carry') and
         get_long_neural_completion_request(request);
@@ -192480,7 +192706,7 @@ begin
     Result := False;
     if (m_dictionary = nil) or
         ((m_one_key_completion.text <> '') and
-        (m_one_key_completion.source <> okcs_long_transition)) or
+        (not (m_one_key_completion.source in [okcs_long_transition, okcs_exact_tail_fallback]))) or
         (not m_has_long_neural_completion_request) or
         (not same_request(request, m_long_neural_completion_request)) or
         (m_long_neural_completion_prefix_locked and

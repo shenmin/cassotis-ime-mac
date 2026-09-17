@@ -2,32 +2,32 @@
   "format": 1,
   "source_sha256": {
     "data/generated/dict_unihan_sc.txt": "102e3a0e95bf03fa437c5963577114402217f80025abd7a0c12baf685306df64",
-    "data/generated/dict_clean_sc.txt": "c097f4286265eb924c90aa9e26255ec8d76e92f7b2ca8d64f951ed9a1479bbc4",
+    "data/generated/dict_clean_sc.txt": "cc927055da7e38f6e2a07178d26b054f714287d6904e061b4ea8b2ce4dceb4f6",
     "data/generated/dict_query_path_prior_sc.txt": "f0fccdb797cef9a2097a006bfc40981792fd990f870beaa0f2cf1dcd2500d3ce",
     "data/generated/dict_lm_transition_sc.txt": "670cff20229984992a8be6ed2b39794f317f5faf3d8c06491a0c17297c8c7afe",
     "data/generated/dict_transition_completion_sc.txt": "a070754fc7f088edc61a773bb36b8736c3b96a5f4a71f4f631c585602ed26b45",
     "data/generated/dict_long_completion_sc.txt": "e4f94e7b5968e5a4db6a70e9b89a3d07de3ed8b8214fa7dbf32f1b5ff29f7c89",
-    "data/generated/dict_completion_prior_sc.txt": "98304d99ecebd10a8234d104fa290e7c49c82ab8d82b291e4a1e0b7171a64409",
-    "data/generated/dict_completion_lookup_sc.txt": "2e75eac5b302f2fc5fafee2cb0cc4a286056bf7a284c52271d38b7f3246ce9d0",
+    "data/generated/dict_completion_prior_sc.txt": "ebcc16c0003926669b738dd4eff277b6efba17b9168c10eb536f71b4e55a9261",
+    "data/generated/dict_completion_lookup_sc.txt": "729dcb9167311ce23b50568d6e869362563b4424779cc6a4c46e02cbd4d13808",
     "data/generated/dict_completion_competition_sc.txt": "8973bf12f32f99168ddab6478fc0be4001e13121ef35217b7bf1bb82377d8276",
     "data/generated/dict_completion_pair_audit_sc.txt": "a25d909f283692a9f8fc95f3e4be102eaef4ac85ea74a8ff4f4462011696d0d2",
     "data/generated/dict_char_lm_sc.txt": "77d85609847aca813a376181b26c1aad6bffe37130036475408a47def1ce72d1",
     "data/generated/dict_char_reverse_lm_sc.txt": "4a288c8bfdab058170de0a13566fcf7be597de05ae10acf27e1e7ad24975798d",
     "data/generated/dict_unihan_tc.txt": "872781666f7d8fe667bcc7c2ce678c93dcff6c100e5f22e6e4620c6101c020fa",
-    "data/generated/dict_clean_tc.txt": "d1e3f9484885faee18e9e582b109a32fee3ca324ae34ed70ec6958ab48182023",
+    "data/generated/dict_clean_tc.txt": "cc2145e97aaf6064fa73785e2c7f6dbdb9bb3f6a2776581a56e3109ac1574fd3",
     "data/generated/dict_query_path_prior_tc.txt": "9574a8cca83ebe94758eefa236f4ea0c17defd96587972ecc9c10d0024ea3fba",
     "data/generated/dict_lm_transition_tc.txt": "c453dfb06a522a08697b5cdd3266eaf5998c5de542adc25f84b1db37d6f7d721",
     "data/generated/dict_transition_completion_tc.txt": "46bd6facce2d8d77a21cbb73f8a284018ccdf608ac5968e858067fd66e7c9795",
     "data/generated/dict_long_completion_tc.txt": "235dc915ead8fe724844711063b4f3bdd70642c8d14e79b105b91d02f04403e9",
-    "data/generated/dict_completion_prior_tc.txt": "d8584d782a2974de682fb014e5ac6b94645810cb37bb3e81ad9c5d08ce37b5c8",
-    "data/generated/dict_completion_lookup_tc.txt": "509520bc2a944f7386552af74e87e04949eb5cb377a3ea94436fb3954186302f",
+    "data/generated/dict_completion_prior_tc.txt": "42bb00a66ddecfc6b517bf800b5d7ff31b2067d5eed355c3273bc56eefad0973",
+    "data/generated/dict_completion_lookup_tc.txt": "d5e28d861b473914e0973de91c3289a8813a25d9567d089bf40c4b1e3de364c4",
     "data/generated/dict_completion_competition_tc.txt": "56221589432bd761c61998bc67d84daf068e53bb5cdfee30bb07916a63d54242",
     "data/generated/dict_completion_pair_audit_tc.txt": "2465c0bed011c1470072476b3ceae5985b405cea85ca8accc1268c62c48d3b08",
     "data/generated/dict_char_lm_tc.txt": "2b217b7eebfe94e6ab6aee5f54a581e7203b9600bbb5f61b73b334fc1380c395",
     "data/generated/dict_char_reverse_lm_tc.txt": "8e7942a53de7c01c0b6ae08e4ace630d041b8261fbf2cd54a8d9753137a404cb"
   },
   "base_entries": {
-    "sc": 213359,
-    "tc": 216574
+    "sc": 213493,
+    "tc": 216708
   }
 }

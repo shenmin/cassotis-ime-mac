@@ -6,7 +6,7 @@ Cassotis IME for macOS builds on the Windows and Linux versions and Cassotis Lex
 
 [Website](https://www.yanquan.org/mac) · [Downloads](https://github.com/shenmin/cassotis-ime-mac/releases) · [Windows](https://github.com/shenmin/cassotis-ime) · [Linux](https://github.com/shenmin/cassotis-ime-linux)
 
-A native Chinese Pinyin input method for macOS, with an **InputMethodKit / AppKit frontend and a separate Free Pascal engine process**. The shared production engine follows Windows 1.26.1 and uses the Lexicon 1.26.1 dictionaries and the same local models. Future updates use the Windows version as their baseline.
+A native Chinese Pinyin input method for macOS, with an **InputMethodKit / AppKit frontend and a separate Free Pascal engine process**. The shared production engine follows Windows 1.27.0 and uses the Lexicon 1.27.0 dictionaries and the same local models. Future updates use the Windows version as their baseline.
 
 Version **0.1.0** (build **1**) targets Apple Silicon. The deployment target is macOS 14+; release validation was performed on an M2 Pro running macOS 26.6.2. See [COMPATIBILITY.md](COMPATIBILITY.md) for the validation status of other systems and architectures.
 
@@ -20,6 +20,8 @@ Version **0.1.0** (build **1**) targets Apple Silicon. The deployment target is 
 - Settings categories in a sidebar, font-name completion, and direct key recording for five configurable shortcuts. Confirmed choices save automatically; macOS system shortcuts and secure password fields retain their normal behavior.
 - Joint local sentence repair with bilateral verification, repaired-prefix reuse for Tab completions, and stable candidates while typing or deleting incomplete initials.
 - Correct Ziguang `sh` / `zh` / `ch` decoding (`song` / `zong` / `cong`), conservative diagnostics for invalid Pinyin and repeated vowels, with red error ranges in the candidate footer, and simplified/traditional display of shared learned words.
+- Five-syllable decoding, stricter pronunciation checks for cached paths, and prefix ranking that respects repeated choices.
+- When no predictive hint is available, Tab can join exact words for the already typed Pinyin. Predictive hints use the theme accent color; exact joins use ordinary text color.
 - All inference runs locally on the CPU through ONNX Runtime. The installed input method needs no compiler, Python installation, or online service.
 
 ## Install and Try
@@ -30,7 +32,7 @@ The graphical installer shows progress, preserves settings and learned words dur
 
 ## Build and Install
 
-Development requires **Free Pascal 3.2.2, Xcode command-line tools, and Python 3.11+**. Lazarus/LCL is not required. Obtain the generated assets from [Cassotis Lexicon v1.26.1](https://github.com/shenmin/cassotis-lexicon/tree/v1.26.1) and point `CASSOTIS_LEXICON_ROOT` to your checkout (`/path/to/...` is a placeholder):
+Development requires **Free Pascal 3.2.2, Xcode command-line tools, and Python 3.11+**. Lazarus/LCL is not required. Obtain the generated assets from [Cassotis Lexicon v1.27.0](https://github.com/shenmin/cassotis-lexicon/tree/v1.27.0) and point `CASSOTIS_LEXICON_ROOT` to your checkout (`/path/to/...` is a placeholder):
 
 ```sh
 export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
@@ -48,7 +50,7 @@ By default, Shift switches between Chinese and English input, Space or a number 
 
 Release validation covers core behavior, model execution, dictionary imports, IPC, composition, recovery and settings persistence, along with real input in native text controls, WebKit, Chrome, Electron and Terminal.
 
-The upgrade passes 397 core regressions and 2,176 simplified/traditional dictionary cases. Full corpus benchmarks pass against the measurements published in the Windows v1.26.1 README: long-sentence Top1/Top2 are **11,968 / 12,954** (−6 / +7), context-enabled short words are **61,860 / 63,549** (identical), and short-word Tab completion has **9,420** hits (+1). Both long-completion budgets produce **414** hits and **960** net keys saved (+4 / −7). See [BENCHMARK.md](BENCHMARK.md) for methodology, timings and scope. Test programs, desktop automation, benchmark tools, corpora, and per-case diagnostics are not included in the source distribution.
+The upgrade passes 460 core regressions and 2,448 simplified/traditional dictionary cases. Full corpus benchmarks meet the frozen Windows v1.27.0 count limits: long-sentence Top1/Top2 are **11,969 / 12,955** (−9 / +0), context-enabled short words are **61,860 / 63,549**, and short-word Tab completion has **9,420** hits (+1). Both long-completion budgets pass; the 50 ms production track records **429** predictive hits, **6,765** predictive prompts, and **980** net keys saved. Exact joins of already typed Pinyin are counted separately. See [BENCHMARK.md](BENCHMARK.md) for methods, timings and scope. Test programs, desktop automation, benchmark tools, corpora, and per-case diagnostics are not included in the source distribution.
 
 ## Source and License
 
