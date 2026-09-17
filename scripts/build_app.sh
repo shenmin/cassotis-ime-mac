@@ -32,8 +32,9 @@ cp "$root/resources/Info.plist" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $bundle_build" "$app/Contents/Info.plist"
 rm -f "$app/Contents/Resources/CassotisInputSource.pdf" \
-    "$app/Contents/Resources/CassotisInputSourceTransparent.tiff"
-cp "$root/resources/Cassotis.png" "$root/resources/CassotisInputSource.tiff" \
+    "$app/Contents/Resources/CassotisInputSourceTransparent.tiff" \
+    "$app/Contents/Resources/CassotisInputSource.tiff"
+cp "$root/resources/Cassotis.png" \
     "$root/resources/CassotisInputSourceRounded.tiff" "$app/Contents/Resources/"
 rsync -a "$root/third_party/lexicon/" "$app/Contents/Resources/licenses/lexicon/"
 rsync -a "$root/third_party/macbert/" "$app/Contents/Resources/licenses/macbert/"

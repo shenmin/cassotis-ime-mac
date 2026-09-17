@@ -92,8 +92,8 @@ static NSArray<NSValue *> *caretAccessories(NSRect caret,pid_t clientPID) {
         self.wantsLayer=YES;
         self.accessibilityIdentifier=@"input-mode-bubble";
         _logo=[[NSImageView alloc] init];
-        _logo.image=[NSBundle.mainBundle imageForResource:@"CassotisInputSource.tiff"]?:
-            [[NSImage alloc] initWithContentsOfFile:@"resources/CassotisInputSource.tiff"];
+        _logo.image=[NSBundle.mainBundle imageForResource:@"CassotisInputSourceRounded.tiff"]?:
+            [[NSImage alloc] initWithContentsOfFile:@"resources/CassotisInputSourceRounded.tiff"];
         _logo.imageScaling=NSImageScaleProportionallyUpOrDown;
         _logo.accessibilityIdentifier=@"input-mode-logo";
         _logo.accessibilityLabel=CassotisShortName();
