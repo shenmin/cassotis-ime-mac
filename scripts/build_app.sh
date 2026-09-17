@@ -31,9 +31,10 @@ cp "$root/build/dictionaries/dict_sc.db" "$root/build/dictionaries/dict_tc.db" "
 cp "$root/resources/Info.plist" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $bundle_build" "$app/Contents/Info.plist"
-rm -f "$app/Contents/Resources/CassotisInputSource.pdf"
+rm -f "$app/Contents/Resources/CassotisInputSource.pdf" \
+    "$app/Contents/Resources/CassotisInputSourceTransparent.tiff"
 cp "$root/resources/Cassotis.png" "$root/resources/CassotisInputSource.tiff" \
-    "$root/resources/CassotisInputSourceTransparent.tiff" "$app/Contents/Resources/"
+    "$root/resources/CassotisInputSourceRounded.tiff" "$app/Contents/Resources/"
 rsync -a "$root/third_party/lexicon/" "$app/Contents/Resources/licenses/lexicon/"
 rsync -a "$root/third_party/macbert/" "$app/Contents/Resources/licenses/macbert/"
 rsync -a "$root/third_party/freepascal/" "$app/Contents/Resources/licenses/freepascal/"
