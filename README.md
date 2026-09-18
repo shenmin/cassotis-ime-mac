@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/macos-preview.png" alt="Native macOS candidate windows and Tab completions in the light, jade and dark themes" width="760">
+  <img src="docs/images/macos-preview.png" alt="Native macOS candidate windows and Tab completions in the light, jade and dark themes" width="600">
 </p>
 
 <p align="center"><sub>Native macOS candidate windows · Tab completion · Light, jade and dark themes</sub></p>

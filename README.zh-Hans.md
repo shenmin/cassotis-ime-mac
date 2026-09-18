@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/macos-preview.png" alt="言泉输入法 macOS 版晴白、青瓷与靛夜主题的候选窗和 Tab 补全展示" width="760">
+  <img src="docs/images/macos-preview.png" alt="言泉输入法 macOS 版晴白、青瓷与靛夜主题的候选窗和 Tab 补全展示" width="600">
 </p>
 
 <p align="center"><sub>macOS 原生候选窗 · Tab 补全 · 晴白、青瓷与靛夜主题</sub></p>
