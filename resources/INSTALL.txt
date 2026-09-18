@@ -57,9 +57,7 @@ ZIP 部署包也提供 Uninstall.command。应用会移出输入法目录，学�
 
 关于签名与公证
 
-名称带 -local 的包使用本机临时签名，带 -signed 的包使用 Developer ID 签名。
-签名与 Apple 公证是两个独立步骤，公证状态以版本发布说明为准。
-如果系统提示无法检查软件或无法验证开发者，在确认从本项目发布页下载后，可按 Apple 的
-“系统设置 → 隐私与安全性 → 仍要打开”流程允许这次打开，再重新执行安装。
-Apple 说明：https://support.apple.com/zh-cn/102445
+正式发布的安装包使用 Developer ID 签名并完成 Apple 公证。
+名称带 -local 的包仅供本机开发使用。
+请从本项目发布页下载正式安装包；若仍遇到无法验证的提示，请反馈提示内容和系统版本。
 发布页：https://github.com/shenmin/cassotis-ime-mac/releases

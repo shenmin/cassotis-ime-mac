@@ -4,16 +4,27 @@ root="$(cd "$(dirname "$0")/.." && pwd -P)"
 arch="${CASSOTIS_ARCH:-arm64}"
 identity=''
 profile=''
+allow_unnotarized=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --identity) identity="$2"; shift;;
         --notary-profile) profile="$2"; shift;;
-        --help|-h) echo 'Usage: scripts/package.sh [--identity DEVELOPER_ID --notary-profile KEYCHAIN_PROFILE]'; exit 0;;
+        --allow-unnotarized) allow_unnotarized=true;;
+        --help|-h) echo 'Usage: scripts/package.sh [--identity DEVELOPER_ID --notary-profile KEYCHAIN_PROFILE] [--allow-unnotarized (development only)]'; exit 0;;
         *) echo "Unknown argument: $1" >&2; exit 2;;
     esac
     shift
 done
 [[ -z "$profile" || -n "$identity" ]] || { echo 'Notarization requires a Developer ID identity.' >&2; exit 2; }
+if [[ -n "$identity" && -z "$profile" ]] && ! $allow_unnotarized; then
+    echo 'Developer ID release packages require --notary-profile PROFILE.' >&2
+    echo 'For signing-only development checks, explicitly pass --allow-unnotarized.' >&2
+    exit 2
+fi
+if [[ -n "$profile" ]]; then
+    # Fail before creating package copies if the account is not configured.
+    xcrun notarytool history --keychain-profile "$profile" --output-format json >/dev/null
+fi
 version="$(tr -d '\r\n' < "$root/VERSION")"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 2
 bundle_build="$(tr -d '\r\n' < "$root/BUILD_NUMBER")"
@@ -27,7 +38,31 @@ codesign --verify --deep --strict "$app"
 [[ "$("$app/Contents/MacOS/cassotis-engine" --version)" == "$version" ]] || { echo 'Engine version mismatch.' >&2; exit 1; }
 mkdir -p "$root/dist"
 stage="$(mktemp -d "$root/build/package.XXXXXX")"
-trap 'rm -rf "$stage"' EXIT
+archive_partial=''
+cleanup() {
+    rm -rf "$stage"
+    [[ -z "$archive_partial" ]] || rm -f "$archive_partial"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+notarize() {
+    local artifact="$1" result="$2" submission_id
+    xcrun notarytool submit "$artifact" --keychain-profile "$profile" --wait \
+        --output-format json >"$result"
+    submission_id="$(python3 -B - "$result" <<'PY'
+import json,sys
+print(json.load(open(sys.argv[1]))['id'])
+PY
+)"
+    # Keep Apple's diagnostic log even when the submission was rejected.
+    xcrun notarytool log "$submission_id" --keychain-profile "$profile" "${result%.json}-log.json"
+    python3 -B - "$result" <<'PY'
+import json,sys
+result = json.load(open(sys.argv[1]))
+assert result['status'] == 'Accepted', f"Notarization was not accepted: {result['status']} ({result['id']})"
+PY
+}
 suffix=''
 [[ -n "$identity" ]] || suffix='-local'
 if [[ -n "$identity" && -z "$profile" ]]; then suffix='-signed'; fi
@@ -56,20 +91,17 @@ if [[ -n "$identity" ]]; then
 fi
 codesign --verify --deep --strict "$package/Cassotis.app"
 archive="$root/dist/$name.zip"
-ditto -c -k --sequesterRsrc --keepParent "$package" "$archive.partial.zip"
+archive_partial="$archive.partial.zip"
+ditto -c -k --sequesterRsrc --keepParent "$package" "$archive_partial"
 if [[ -n "$profile" ]]; then
-    xcrun notarytool submit "$archive.partial.zip" --keychain-profile "$profile" --wait \
-        --output-format json >"$root/dist/$name-notarization.json"
-    python3 -B - "$root/dist/$name-notarization.json" <<'PY'
-import json,sys
-assert json.load(open(sys.argv[1]))['status']=='Accepted', 'Notarization was not accepted'
-PY
+    notarize "$archive_partial" "$root/dist/$name-notarization.json"
     xcrun stapler staple "$package/Cassotis.app"
     xcrun stapler validate "$package/Cassotis.app"
     spctl --assess --type execute --verbose=2 "$package/Cassotis.app"
-    ditto -c -k --sequesterRsrc --keepParent "$package" "$archive.partial.zip"
+    syspolicy_check distribution "$package/Cassotis.app"
+    ditto -c -k --sequesterRsrc --keepParent "$package" "$archive_partial"
 fi
-mv "$archive.partial.zip" "$archive"
+mv "$archive_partial" "$archive"
 (cd "$root/dist" && shasum -a 256 "$name.zip") >"$archive.sha256"
 printf 'Package: %s\n' "$archive"
 
@@ -86,6 +118,17 @@ else
     codesign --force --sign - "$installer"
 fi
 codesign --verify --deep --strict "$installer"
+if [[ -n "$profile" ]]; then
+    # The installer must carry its own ticket before the final image is sealed.
+    installer_archive="$stage/installer.zip"
+    ditto -c -k --sequesterRsrc --keepParent "$installer" "$installer_archive"
+    notarize "$installer_archive" "$root/dist/$name-installer-notarization.json"
+    rm -f "$installer_archive"
+    xcrun stapler staple "$installer"
+    xcrun stapler validate "$installer"
+    spctl --assess --type execute --verbose=2 "$installer"
+    syspolicy_check distribution "$installer"
+fi
 sed "s/@VERSION@/$version/g" "$root/resources/DMG-README.txt" >"$image_root/安装说明.txt"
 disk_image="$root/dist/$image_name.dmg"
 "$root/scripts/build_disk_image.sh" "$image_root" "$stage/package.dmg" "言泉输入法安装器 $version"
@@ -93,15 +136,11 @@ if [[ -n "$identity" ]]; then
     codesign --force --timestamp --sign "$identity" "$stage/package.dmg"
 fi
 if [[ -n "$profile" ]]; then
-    xcrun notarytool submit "$stage/package.dmg" --keychain-profile "$profile" --wait \
-        --output-format json >"$root/dist/$name-dmg-notarization.json"
-    python3 -B - "$root/dist/$name-dmg-notarization.json" <<'PY'
-import json,sys
-assert json.load(open(sys.argv[1]))['status']=='Accepted', 'Disk image notarization was not accepted'
-PY
+    notarize "$stage/package.dmg" "$root/dist/$name-dmg-notarization.json"
     xcrun stapler staple "$stage/package.dmg"
     xcrun stapler validate "$stage/package.dmg"
     spctl --assess --type open --context context:primary-signature --verbose=2 "$stage/package.dmg"
+    spctl --assess --type execute --verbose=2 "$installer"
 fi
 mv "$stage/package.dmg" "$disk_image"
 (cd "$root/dist" && shasum -a 256 "$image_name.dmg") >"$disk_image.sha256"

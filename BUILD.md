@@ -68,7 +68,7 @@ DMG 附带普通与 Retina 分辨率的背景，自动保存安装器与说明�
 ./scripts/package.sh --identity 'Developer ID Application: YOUR NAME (TEAMID)' --notary-profile YOUR_PROFILE
 ```
 
-省略 `--notary-profile` 时仅完成 Developer ID 签名；指定有效配置才会提交 Apple 公证并装订票据。`-signed.dmg` 文件名只表示签名，公证状态以发布说明为准。v0.1.0 的发布包由 Sunisoft Limited 签名，尚未经过 Apple 公证。证书、私钥和钥匙串配置由构建者自行管理。打包器使用暂存副本，不修改已安装应用。
+指定 Developer ID 身份时，打包器默认要求同时提供 `--notary-profile`，并在打包前验证公证凭据。流程依次对输入法、安装器和最终 DMG 提交 Apple 公证，每一层确认通过后装订并验证自身票据。输入法和安装器还须通过系统分发检查，最终磁盘镜像须通过 Gatekeeper 检查。仅供开发排查的签名包可显式添加 `--allow-unnotarized`，此选项不适用于正式发布。`-signed.dmg` 文件名本身不能证明已公证。证书、私钥和钥匙串配置由构建者自行管理。打包器使用暂存副本，不修改已安装应用。
 
 评分方法、测试环境和汇总结果见 [BENCHMARK.md](BENCHMARK.md)。测试程序、桌面自动化、基准工具、语料和逐例诊断不随源码分发。
 
