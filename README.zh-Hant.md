@@ -1,5 +1,21 @@
 # Cassotis IME - 言泉輸入法
 
+<p align="center">
+  <img src="docs/images/cassotis-logo.png" alt="Cassotis IME - 言泉輸入法 logo" width="280">
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License: GPL-3.0"></a>
+  <a href="COMPATIBILITY.md"><img src="https://img.shields.io/badge/platform-macOS-000000?logo=apple&amp;logoColor=white" alt="Platform: macOS"></a>
+  <a href="BUILD.md"><img src="https://img.shields.io/badge/arch-Apple%20Silicon-5a67d8" alt="Architecture: Apple Silicon"></a>
+</p>
+
+<p align="center">
+  <img src="docs/images/macos-preview.png" alt="言泉輸入法 macOS 版晴白、青瓷與靛夜主題的候選視窗和 Tab 補全展示" width="760">
+</p>
+
+<p align="center"><sub>macOS 原生候選視窗 · Tab 補全 · 晴白、青瓷與靛夜主題</sub></p>
+
 [English](README.md) | [簡體中文](README.zh-Hans.md) | 繁體中文
 
 言泉輸入法的 macOS 版，以 Windows / Linux 版與 Cassotis Lexicon 為基礎。

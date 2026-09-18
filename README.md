@@ -1,5 +1,21 @@
 # Cassotis IME - 言泉输入法
 
+<p align="center">
+  <img src="docs/images/cassotis-logo.png" alt="Cassotis IME logo" width="280">
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License: GPL-3.0"></a>
+  <a href="COMPATIBILITY.md"><img src="https://img.shields.io/badge/platform-macOS-000000?logo=apple&amp;logoColor=white" alt="Platform: macOS"></a>
+  <a href="BUILD.md"><img src="https://img.shields.io/badge/arch-Apple%20Silicon-5a67d8" alt="Architecture: Apple Silicon"></a>
+</p>
+
+<p align="center">
+  <img src="docs/images/macos-preview.png" alt="Native macOS candidate windows and Tab completions in the light, jade and dark themes" width="760">
+</p>
+
+<p align="center"><sub>Native macOS candidate windows · Tab completion · Light, jade and dark themes</sub></p>
+
 English | [简体中文](README.zh-Hans.md) | [繁體中文](README.zh-Hant.md)
 
 Cassotis IME for macOS builds on the Windows and Linux versions and Cassotis Lexicon.
