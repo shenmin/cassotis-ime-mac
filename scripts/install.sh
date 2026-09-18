@@ -64,11 +64,12 @@ installed=1
 "$control" launch
 printf 'Installed: %s\n' "$destination"
 cat <<'INSTRUCTIONS'
-应用文件已安装。请完成 macOS 的输入法启用确认：
+应用文件已安装。图形安装器会继续请求 macOS 启用言泉输入法。
+若使用命令行安装，或图形安装器提示尚未启用：
 打开“系统设置 → 键盘 → 文字输入 → 编辑”。
 若输入源列表中没有言泉输入法，点击“+”，在“中文（简体）”中添加。
 按 macOS 的提示确认允许使用言泉输入法。
 若列表中已有言泉输入法，但输入菜单中没有，请在系统设置中移除该输入源后重新添加。
 完成系统确认后，从菜单栏的输入菜单选择言泉输入法；选中时显示彩色言泉 logo。
-Installed files alone do not complete macOS input-source approval.
+Input-source approval is requested by the graphical installer after deployment.
 INSTRUCTIONS
