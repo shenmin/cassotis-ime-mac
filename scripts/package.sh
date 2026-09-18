@@ -32,7 +32,10 @@ suffix=''
 [[ -n "$identity" ]] || suffix='-local'
 if [[ -n "$identity" && -z "$profile" ]]; then suffix='-signed'; fi
 name="Cassotis-$version-macos-$arch$suffix"
-image_name="Cassotis-$version-macos-$arch-installer$suffix"
+# Keep the release DMG name stable even when notarization is enabled.
+image_suffix='-local'
+[[ -z "$identity" ]] || image_suffix='-signed'
+image_name="cassotis-ime-macos-$version-$arch-installer$image_suffix"
 package="$stage/$name"
 mkdir -p "$package/scripts" "$package/tools"
 ditto "$app" "$package/Cassotis.app"
@@ -85,8 +88,7 @@ fi
 codesign --verify --deep --strict "$installer"
 sed "s/@VERSION@/$version/g" "$root/resources/DMG-README.txt" >"$image_root/安装说明.txt"
 disk_image="$root/dist/$image_name.dmg"
-hdiutil create -quiet -ov -volname "言泉输入法安装器 $version" -fs HFS+ -format UDZO \
-    -srcfolder "$image_root" "$stage/package.dmg"
+"$root/scripts/build_disk_image.sh" "$image_root" "$stage/package.dmg" "言泉输入法安装器 $version"
 if [[ -n "$identity" ]]; then
     codesign --force --timestamp --sign "$identity" "$stage/package.dmg"
 fi

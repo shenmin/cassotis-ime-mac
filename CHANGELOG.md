@@ -2,6 +2,8 @@
 
 ## 0.1.0 (build 1)
 
+- Use the stable lowercase release filename `cassotis-ime-macos-<version>-arm64-installer-signed.dmg` and document signing and notarization separately.
+- Style the installer disk image with a website-inspired Retina background and a saved Finder layout for the installer and installation guide.
 - Add an automatically saved logging switch, off by default, that starts or stops file logging immediately without restarting the input engine; rotate active logs at 2 MiB.
 - Clearly label the DMG, mounted volume and bundled application as the Cassotis installer.
 - Use the same white-backed logo with pronounced rounded corners in the macOS input-source switcher, menu bar and Cassotis's Chinese/English status bubble.

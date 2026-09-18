@@ -17,6 +17,8 @@ Cassotis IME - 言泉输入法 · macOS @VERSION@
 从旧版本升级后，若输入菜单仍显示旧名称，保存工作后退出登录并重新登录可刷新系统缓存。
 
 文件名带 -local 的包为本机临时签名；带 -signed 的包已使用 Developer ID 签名。
-这两种包均未经过 Apple 公证，供当前测试使用。
-如果 macOS 提示无法验证开发者，在确认来源后，通过“系统设置 → 隐私与安全性 → 仍要打开”允许这次打开。
-正式分发包应使用 Developer ID 签名并完成 Apple 公证。
+签名与 Apple 公证是两个独立步骤，公证状态以版本发布说明为准。
+如果 macOS 提示无法检查软件或无法验证开发者，请先确认从本项目发布页下载，
+再通过“系统设置 → 隐私与安全性 → 仍要打开”允许这次打开。
+发布页：https://github.com/shenmin/cassotis-ime-mac/releases
+Apple 说明：https://support.apple.com/zh-cn/102445
