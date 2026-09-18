@@ -1,6 +1,7 @@
 #import "InputSession.h"
 #import "SettingsController.h"
 #import "ProductName.h"
+#import "RuntimeLog.h"
 #import <InputMethodKit/InputMethodKit.h>
 #import <Carbon/Carbon.h>
 #include <memory>
@@ -40,26 +41,18 @@ void CassotisStartEngine(void) {
     NSString *exe=override?:[NSBundle.mainBundle.executablePath.stringByDeletingLastPathComponent stringByAppendingPathComponent:@"cassotis-engine"];
     if(![NSFileManager.defaultManager isExecutableFileAtPath:exe]) return;
     NSString *directory=[NSHomeDirectory() stringByAppendingPathComponent:@"Library/Application Support/CassotisIME"];
-    NSString *logs=[NSHomeDirectory() stringByAppendingPathComponent:@"Library/Logs/CassotisIME"];
     [NSFileManager.defaultManager createDirectoryAtPath:directory withIntermediateDirectories:YES
         attributes:@{NSFilePosixPermissions:@0700} error:nil];
-    [NSFileManager.defaultManager createDirectoryAtPath:logs withIntermediateDirectories:YES
-        attributes:@{NSFilePosixPermissions:@0700} error:nil];
-    NSString *log=[logs stringByAppendingPathComponent:@"engine.log"];
-    NSDictionary *attributes=[NSFileManager.defaultManager attributesOfItemAtPath:log error:nil];
-    if([attributes[NSFileSize] unsignedLongLongValue]>2*1024*1024) {
-        NSString *old=[logs stringByAppendingPathComponent:@"engine.previous.log"];
-        [NSFileManager.defaultManager removeItemAtPath:old error:nil];
-        [NSFileManager.defaultManager moveItemAtPath:log toPath:old error:nil];
-    }
-    if(![NSFileManager.defaultManager fileExistsAtPath:log])
-        [NSFileManager.defaultManager createFileAtPath:log contents:nil attributes:@{NSFilePosixPermissions:@0600}];
-    NSFileHandle *output=[NSFileHandle fileHandleForWritingAtPath:log]; [output seekToEndOfFile];
     NSTask *task=[[NSTask alloc] init]; engineTask=task; task.executableURL=[NSURL fileURLWithPath:exe];
     task.arguments=@[@"--serve",@"--socket",CassotisSocketPath(),@"--parent-pid",[NSString stringWithFormat:@"%d",getpid()]];
-    task.standardOutput=output; task.standardError=output; task.standardInput=NSFileHandle.fileHandleWithNullDevice;
-    NSError *error=nil; if(![task launchAndReturnError:&error]) NSLog(@"Cassotis engine launch failed: %@",error.localizedDescription);
-    [output closeFile];
+    NSPipe *output=[CassotisRuntimeLog.shared captureOutputOfTask:task];
+    task.standardInput=NSFileHandle.fileHandleWithNullDevice;
+    NSError *error=nil;
+    if(![task launchAndReturnError:&error]) {
+        [output.fileHandleForWriting closeAndReturnError:nil];
+        NSString *message=[NSString stringWithFormat:@"Cassotis engine launch failed: %@\n",error.localizedDescription];
+        [CassotisRuntimeLog.shared appendData:[message dataUsingEncoding:NSUTF8StringEncoding]];
+    }
 }
 static unsigned char unshiftedNumber(unsigned char c, uint32_t modifiers) {
     if(modifiers&1) {

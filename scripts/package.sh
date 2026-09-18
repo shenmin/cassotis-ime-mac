@@ -28,9 +28,11 @@ codesign --verify --deep --strict "$app"
 mkdir -p "$root/dist"
 stage="$(mktemp -d "$root/build/package.XXXXXX")"
 trap 'rm -rf "$stage"' EXIT
-name="Cassotis-$version-macos-$arch"
-[[ -n "$identity" ]] || name="$name-local"
-if [[ -n "$identity" && -z "$profile" ]]; then name="$name-signed"; fi
+suffix=''
+[[ -n "$identity" ]] || suffix='-local'
+if [[ -n "$identity" && -z "$profile" ]]; then suffix='-signed'; fi
+name="Cassotis-$version-macos-$arch$suffix"
+image_name="Cassotis-$version-macos-$arch-installer$suffix"
 package="$stage/$name"
 mkdir -p "$package/scripts" "$package/tools"
 ditto "$app" "$package/Cassotis.app"
@@ -71,7 +73,7 @@ printf 'Package: %s\n' "$archive"
 # The primary end-user download is a normal disk image with a native installer.
 # The ZIP remains available for command-line deployment and regression tooling.
 image_root="$stage/disk-image"
-installer="$image_root/安装言泉输入法.app"
+installer="$image_root/言泉输入法安装器.app"
 "$root/scripts/build_installer.sh" "$installer"
 ditto "$package" "$installer/Contents/Resources/Payload"
 if [[ -n "$identity" ]]; then
@@ -82,8 +84,8 @@ else
 fi
 codesign --verify --deep --strict "$installer"
 sed "s/@VERSION@/$version/g" "$root/resources/DMG-README.txt" >"$image_root/安装说明.txt"
-disk_image="$root/dist/$name.dmg"
-hdiutil create -quiet -ov -volname "言泉输入法 $version" -fs HFS+ -format UDZO \
+disk_image="$root/dist/$image_name.dmg"
+hdiutil create -quiet -ov -volname "言泉输入法安装器 $version" -fs HFS+ -format UDZO \
     -srcfolder "$image_root" "$stage/package.dmg"
 if [[ -n "$identity" ]]; then
     codesign --force --timestamp --sign "$identity" "$stage/package.dmg"
@@ -100,5 +102,5 @@ PY
     spctl --assess --type open --context context:primary-signature --verbose=2 "$stage/package.dmg"
 fi
 mv "$stage/package.dmg" "$disk_image"
-(cd "$root/dist" && shasum -a 256 "$name.dmg") >"$disk_image.sha256"
+(cd "$root/dist" && shasum -a 256 "$image_name.dmg") >"$disk_image.sha256"
 printf 'Graphical installer: %s\n' "$disk_image"

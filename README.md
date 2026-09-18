@@ -42,7 +42,7 @@ Version **0.1.0** (build **1**) targets Apple Silicon. The deployment target is 
 
 ## Install and Try
 
-Download the DMG, open it, double-click **安装言泉输入法** (Install Cassotis IME), and click **安装** (Install). When installation finishes, click **打开键盘设置** (Open Keyboard Settings). In System Settings, go to **Keyboard → Text Input → Edit → + → Chinese, Simplified** and add **言泉输入法**. Select it from the input menu in the menu bar. If the input source is already added, select it directly; the menu displays the color Cassotis logo when it is active. Type `nihao` and press Space to enter “你好”.
+Download the DMG, open it, double-click **言泉输入法安装器** (Cassotis IME Installer), and click **安装** (Install). When installation finishes, click **打开键盘设置** (Open Keyboard Settings). In System Settings, go to **Keyboard → Text Input → Edit → + → Chinese, Simplified** and add **言泉输入法**. Select it from the input menu in the menu bar. If the input source is already added, select it directly; the menu displays the color Cassotis logo when it is active. Type `nihao` and press Space to enter “你好”.
 
 The graphical installer shows progress, preserves settings and learned words during upgrades, and provides logs and a retry option if installation fails. Using the installed input method requires no Terminal commands, compiler, Python installation, or separate model downloads. Packages ending in `-local` use a local ad hoc signature; packages ending in `-signed` use a Developer ID signature. Neither type of test package has been notarized by Apple. The installer also provides an uninstall option; remove the input source in System Settings first.
 

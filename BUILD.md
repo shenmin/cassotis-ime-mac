@@ -34,7 +34,7 @@ export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
 | 输出 | 用途 |
 | --- | --- |
 | `build/arm64/Cassotis.app` | 输入法应用，包含引擎、运行库、模型与词库 |
-| `build/arm64/安装言泉输入法.app` | 图形安装器；打包时加入安装负载 |
+| `build/arm64/言泉输入法安装器.app` | 图形安装器；打包时加入安装负载 |
 | `build/arm64/bin/` | 引擎、词库导入器、输入源管理工具及推理运行库 |
 | `build/dictionaries/` | 简繁 SQLite 数据库及导入记录 |
 | `build/arm64/units/`、`logs/`、`symbols/` | 编译中间文件、日志与调试符号 |

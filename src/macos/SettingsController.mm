@@ -3,6 +3,7 @@
 #import "InputSession.h"
 #import "CandidateAppearance.h"
 #import "ShortcutRecorder.h"
+#import "RuntimeLog.h"
 
 @interface CassotisSettingsDocument : NSView
 @end
@@ -55,7 +56,7 @@
     NSPopUpButton *_scheme, *_dictionary, *_pageKeys, *_completionKey, *_pageSize, *_theme;
     NSSlider *_fontSize;
     NSTextField *_fontSizeLabel, *_status;
-    NSButton *_fullWidth, *_punctuation, *_fuzzy, *_retry, *_resetAppearance;
+    NSButton *_fullWidth, *_punctuation, *_fuzzy, *_retry, *_resetAppearance, *_logging;
     NSComboBox *_fontFamily;
     NSArray<NSString *> *_fontFamilies;
     NSMutableArray<NSButton *> *_rules, *_shortcutEnabled;
@@ -263,7 +264,10 @@
         [self hint:@"Command、Ctrl + Space 和 Fn 系统组合键由 macOS 管理。系统输入源切换键可在“系统设置 → 键盘”中调整。"]]];
 
     NSButton *logs=[NSButton buttonWithTitle:@"打开日志文件夹" target:self action:@selector(openLogs:)];
-    [self section:@"日志" views:@[[self card:@[[self hint:@"运行日志用于排查启动和输入异常。日志达到大小上限后自动轮换，保留上一份记录。"],
+    _logging=[self check:@"启用日志" identifier:@"logging-enabled"];
+    _logging.action=@selector(loggingChanged:);
+    [self section:@"日志" views:@[[self card:@[_logging,
+        [self hint:@"默认关闭。开启后记录启动和运行诊断，开关立即生效并自动保存，不中断输入。关闭后停止写入，已有日志保留。每份日志最多 2 MB，保留上一份记录。"],
         [self row:@"运行日志" control:logs]]]]];
     NSButton *config=[NSButton buttonWithTitle:@"打开配置文件夹" target:self action:@selector(openConfig:)];
     NSButton *clear=[NSButton buttonWithTitle:@"清除学习记录…" target:self action:@selector(clear:)];
@@ -387,6 +391,13 @@
     }
     _saving=NO;
 }
+- (void)loggingChanged:(NSButton *)sender {
+    if(_loading) return;
+    CassotisRuntimeLog.shared.enabled=sender.state==NSControlStateValueOn;
+    if(CassotisRuntimeLog.shared.enabled)
+        [CassotisRuntimeLog.shared appendData:[@"[INFO] runtime logging enabled\n" dataUsingEncoding:NSUTF8StringEncoding]];
+    _status.stringValue=@"日志设置已自动保存并生效。";
+}
 - (void)shortcutEnabledChanged:(NSButton *)sender { _shortcuts[sender.tag].enabled=sender.state==NSControlStateValueOn; [self changed:sender]; }
 - (void)appearanceChanged:(id)sender { [self updatePreview]; [self changed:sender]; }
 - (CGFloat)selectedFontSize { return CassotisCandidateFontSizes()[(NSUInteger)llround(_fontSize.doubleValue)].doubleValue; }
@@ -432,6 +443,7 @@
         _status.stringValue=@"所有词库学习和模型推理均在本机进行。";
     } catch(const std::exception &e) { _status.stringValue=[NSString stringWithUTF8String:e.what()]; }
     NSUserDefaults *defaults=NSUserDefaults.standardUserDefaults;
+    _logging.state=CassotisRuntimeLog.shared.enabled?NSControlStateValueOn:NSControlStateValueOff;
     [_theme selectItemAtIndex:CassotisCandidateTheme(defaults)];
     _fontFamily.stringValue=[defaults stringForKey:@"CandidateFontFamily"]?:@"PingFang SC";
     CGFloat size=CassotisCandidateFontSize(defaults),distance=100; NSUInteger best=1;

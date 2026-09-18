@@ -2,7 +2,7 @@
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd -P)"
 arch="${CASSOTIS_ARCH:-arm64}"
-app="${1:-$root/build/$arch/安装言泉输入法.app}"
+app="${1:-$root/build/$arch/言泉输入法安装器.app}"
 version="$(tr -d '\r\n' < "$root/VERSION")"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 2
 bundle_build="$(tr -d '\r\n' < "$root/BUILD_NUMBER")"

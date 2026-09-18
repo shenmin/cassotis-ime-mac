@@ -2,8 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
     <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
-    <key>CFBundleDisplayName</key><string>安装言泉输入法</string>
-    <key>CFBundleName</key><string>安装言泉输入法</string>
+    <key>CFBundleDisplayName</key><string>言泉输入法安装器</string>
+    <key>CFBundleName</key><string>言泉输入法安装器</string>
     <key>CFBundleExecutable</key><string>CassotisInstaller</string>
     <key>CFBundleIdentifier</key><string>org.cassotis.Installer</string>
     <key>CFBundlePackageType</key><string>APPL</string>
