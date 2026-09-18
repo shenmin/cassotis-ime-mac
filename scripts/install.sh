@@ -42,7 +42,10 @@ cleanup() {
     return "$status"
 }
 trap cleanup EXIT
-ditto "$source_app" "$staging/Cassotis.app"
+# Deploy the verified files without inheriting the download's extended
+# attributes. --noqtn alone still copies an explicit quarantine xattr on macOS.
+# Inheriting it would translocate the input method away from its registered path.
+ditto --noextattr --noqtn "$source_app" "$staging/Cassotis.app"
 codesign --verify --deep --strict "$staging/Cassotis.app"
 "$control" prepare-update
 if [[ -d "$destination" ]]; then

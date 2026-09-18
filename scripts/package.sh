@@ -63,6 +63,26 @@ result = json.load(open(sys.argv[1]))
 assert result['status'] == 'Accepted', f"Notarization was not accepted: {result['status']} ({result['id']})"
 PY
 }
+ticket_action() {
+    local action="$1" target="$2" output status attempt
+    for attempt in 1 2 3 4 5; do
+        if output="$(xcrun stapler "$action" "$target" 2>&1)"; then
+            printf '%s\n' "$output"
+            return 0
+        else
+            status=$?
+            printf '%s\n' "$output" >&2
+        fi
+        # Retry Apple's transient network failures; never accept an invalid or
+        # missing ticket, and never disable TLS certificate verification.
+        if [[ "$status" -eq 68 && "$output" == *NSURLErrorDomain* && "$attempt" -lt 5 ]]; then
+            echo 'Retrying Apple ticket service after a network error.' >&2
+            sleep "$((1 << attempt))"
+        else
+            return "$status"
+        fi
+    done
+}
 suffix=''
 [[ -n "$identity" ]] || suffix='-local'
 if [[ -n "$identity" && -z "$profile" ]]; then suffix='-signed'; fi
@@ -95,8 +115,8 @@ archive_partial="$archive.partial.zip"
 ditto -c -k --sequesterRsrc --keepParent "$package" "$archive_partial"
 if [[ -n "$profile" ]]; then
     notarize "$archive_partial" "$root/dist/$name-notarization.json"
-    xcrun stapler staple "$package/Cassotis.app"
-    xcrun stapler validate "$package/Cassotis.app"
+    ticket_action staple "$package/Cassotis.app"
+    ticket_action validate "$package/Cassotis.app"
     spctl --assess --type execute --verbose=2 "$package/Cassotis.app"
     syspolicy_check distribution "$package/Cassotis.app"
     ditto -c -k --sequesterRsrc --keepParent "$package" "$archive_partial"
@@ -124,8 +144,8 @@ if [[ -n "$profile" ]]; then
     ditto -c -k --sequesterRsrc --keepParent "$installer" "$installer_archive"
     notarize "$installer_archive" "$root/dist/$name-installer-notarization.json"
     rm -f "$installer_archive"
-    xcrun stapler staple "$installer"
-    xcrun stapler validate "$installer"
+    ticket_action staple "$installer"
+    ticket_action validate "$installer"
     spctl --assess --type execute --verbose=2 "$installer"
     syspolicy_check distribution "$installer"
 fi
@@ -137,8 +157,8 @@ if [[ -n "$identity" ]]; then
 fi
 if [[ -n "$profile" ]]; then
     notarize "$stage/package.dmg" "$root/dist/$name-dmg-notarization.json"
-    xcrun stapler staple "$stage/package.dmg"
-    xcrun stapler validate "$stage/package.dmg"
+    ticket_action staple "$stage/package.dmg"
+    ticket_action validate "$stage/package.dmg"
     spctl --assess --type open --context context:primary-signature --verbose=2 "$stage/package.dmg"
     spctl --assess --type execute --verbose=2 "$installer"
 fi
