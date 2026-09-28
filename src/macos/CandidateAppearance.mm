@@ -176,20 +176,23 @@ static NSString *str(const std::string &s) {
     return [[NSString alloc] initWithBytes:s.data() length:s.size() encoding:NSUTF8StringEncoding] ?: @"";
 }
 static CassotisCandidateButton *candidateButton(NSString *prefix, NSString *text, NSString *comment,
-    NSFont *font, NSColor *color, NSColor *muted, BOOL selected, const CassotisCandidateColors &colors) {
+    NSFont *font, NSColor *color, NSColor *muted, BOOL selected, const CassotisCandidateColors &colors,
+    BOOL hidePrefix=NO) {
     CassotisCandidateButton *button=[[CassotisCandidateButton alloc] init];
     button.bordered=NO; button.focusRingType=NSFocusRingTypeNone;
     button.font=font; button.alignment=NSTextAlignmentLeft;
     NSMutableParagraphStyle *paragraph=[[NSMutableParagraphStyle alloc] init];
     paragraph.lineBreakMode=NSLineBreakByTruncatingTail;
     NSMutableAttributedString *title=[[NSMutableAttributedString alloc] initWithString:prefix
-        attributes:@{NSFontAttributeName:font,NSForegroundColorAttributeName:muted,NSParagraphStyleAttributeName:paragraph}];
+        attributes:@{NSFontAttributeName:font,NSForegroundColorAttributeName:hidePrefix?NSColor.clearColor:muted,
+            NSParagraphStyleAttributeName:paragraph}];
     [title appendAttributedString:[[NSAttributedString alloc] initWithString:text
         attributes:@{NSFontAttributeName:font,NSForegroundColorAttributeName:color,NSParagraphStyleAttributeName:paragraph}]];
     if(comment.length) [title appendAttributedString:[[NSAttributedString alloc] initWithString:[@"  " stringByAppendingString:comment]
         attributes:@{NSFontAttributeName:[NSFont systemFontOfSize:MAX(11,font.pointSize-2)],
             NSForegroundColorAttributeName:muted,NSParagraphStyleAttributeName:paragraph}]];
-    button.attributedTitle=title; button.toolTip=title.string;
+    button.attributedTitle=title;
+    button.toolTip=hidePrefix?[title.string substringFromIndex:prefix.length]:title.string;
     if(selected) { button.fillColor=colors.selection; button.strokeColor=colors.selectionBorder; }
     button.accessibilityValue=selected?@"已选中":@"";
     return button;
@@ -270,11 +273,14 @@ NSView *CassotisCandidateView(const cassotis::Result &r, CGFloat size, NSString 
         if(i==9) break;
         BOOL active=row.page==r.page, selected=active && i==r.selected;
         NSInteger tag=active?i:(NSInteger(row.page)+1)*16+i;
-        NSString *prefix=active?[NSString stringWithFormat:@"%ld  ",(long)i+1]:@"   ";
+        // Keep the actual numbered prefix in the layout even on inactive rows.
+        // Spaces have different advances and move every subsequent candidate
+        // when the active row changes, especially with proportional fonts.
+        NSString *prefix=[NSString stringWithFormat:@"%ld  ",(long)i+1];
         NSColor *color=c.source==1?(selected?colors.selectedUser:colors.user):
             c.kind==1?(selected?colors.selectedCompound:colors.compound):(selected?colors.selectedText:colors.text);
         CassotisCandidateButton *button=candidateButton(prefix,str(c.text),displayComment(c.comment),
-            font,color,selected?colors.selectedWeight:colors.weight,selected,colors);
+            font,color,selected?colors.selectedWeight:colors.weight,selected,colors,!active);
         button.tag=tag; button.target=target; button.action=selection;
         button.accessibilityLabel=[NSString stringWithFormat:@"候选 %ld，%@",(long)i+1,str(c.text)];
         button.accessibilityIdentifier=active?[NSString stringWithFormat:@"candidate-%ld",(long)i]:

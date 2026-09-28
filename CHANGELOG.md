@@ -5,7 +5,7 @@
 - Align the shared engine, production models and dictionaries with Windows / Cassotis Lexicon v1.29.0.
 - Add conservative short-word context reranking with shared encoder segments and a 30 ms result budget, preserving learned preferences and safe abstention.
 - Improve literary paths, bounded classical phrase recovery, decreasing long-sentence prefixes, fuzzy character ordering and evidence-backed compound candidates.
-- Add optional three-row candidate browsing, stable paging and direct mouse selection across visible rows; verified snapshots reject stale selections and removals. Keep the completion row visible.
+- Add optional three-row candidate browsing, stable paging and direct mouse selection across visible rows; verified snapshots reject stale selections and removals. Inactive rows reserve the same number-label width as the active row so words stay in place when moving up or down. Keep the completion row visible.
 - Add exact specialist vocabulary without polluting general predictions, deduplicate popularity evidence for additive readings, and accelerate Pinyin and dictionary prefix lookup.
 - Correct ARM64 compiler differences in score-sentinel comparisons and floating-point intermediates to preserve candidate paths and Delphi scoring semantics.
 - Keep automatic input-source enablement requests and per-layer notarization; upgrades preserve settings and learning. Explain the manual System Settings path when macOS does not show a consent dialog, and automatically verify enablement when returning to the installer.
