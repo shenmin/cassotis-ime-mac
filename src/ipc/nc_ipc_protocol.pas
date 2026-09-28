@@ -37,7 +37,8 @@ type
         imt_error,
         imt_clear_user_dictionary,
         imt_poll_result,
-        imt_remove_candidate
+        imt_remove_candidate,
+        imt_candidate_action
     );
 
     TncIpcEnvelope = record

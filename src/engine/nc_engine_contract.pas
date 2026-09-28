@@ -33,9 +33,23 @@ type
         function RemoveCandidateVerified(const context_id, generation_id: QWord;
             const candidate_index: Integer; const expected_query, expected_text,
             expected_comment: string): TncEngineResult; virtual;
+        function CandidateActionVerified(const context_id, generation_id,
+            revision: QWord; const page_index, candidate_index: Integer;
+            const remove: Boolean; const expected_query, expected_text,
+            expected_comment: string): TncEngineResult; virtual;
     end;
 
 implementation
+
+function TncEngineCore.CandidateActionVerified(const context_id, generation_id,
+    revision: QWord; const page_index, candidate_index: Integer;
+    const remove: Boolean; const expected_query, expected_text,
+    expected_comment: string): TncEngineResult;
+begin
+    nc_initialize_engine_result(Result);
+    Result.error_code := 3;
+    Result.error_text := 'Candidate actions are not supported';
+end;
 
 function TncEngineCore.RemoveCandidateVerified(const context_id,
     generation_id: QWord; const candidate_index: Integer;

@@ -15,7 +15,7 @@ const
     c_ipc_engine_state_fuzzy_schema_version = 2;
     c_ipc_engine_state_shortcuts_schema_version = 3;
     c_ipc_engine_state_page_size_schema_version = 4;
-    c_ipc_engine_state_schema_version = 5;
+    c_ipc_engine_state_schema_version = 6;
     c_ipc_payload_max_text_bytes = 1024 * 1024;
     c_ipc_payload_max_candidates = 256;
 
@@ -37,6 +37,14 @@ function nc_try_decode_surrounding_payload(const payload: TBytes;
 function nc_encode_key_event_payload(const key_event: TncKeyEvent): TBytes;
 function nc_try_decode_key_event_payload(const payload: TBytes;
     out key_event: TncKeyEvent; out error_text: string): Boolean;
+
+function nc_encode_candidate_action_payload(const revision: QWord;
+    const page_index, candidate_index: Integer; const remove: Boolean;
+    const expected_query, expected_text, expected_comment: string): TBytes;
+function nc_try_decode_candidate_action_payload(const payload: TBytes;
+    out revision: QWord; out page_index, candidate_index: Integer;
+    out remove: Boolean;
+    out expected_query, expected_text, expected_comment, error_text: string): Boolean;
 
 function nc_encode_remove_candidate_payload(const candidate_index: Integer;
     const expected_query, expected_text, expected_comment: string): TBytes;
@@ -72,9 +80,11 @@ const
     c_state_flag_punctuation_full_width = $02;
     c_state_flag_fuzzy_pinyin_enabled = $04;
     c_state_flag_debug_mode = $08;
+    c_state_flag_expand_candidates = $10;
     c_state_known_flags = c_state_flag_full_width or
         c_state_flag_punctuation_full_width or
-        c_state_flag_fuzzy_pinyin_enabled or c_state_flag_debug_mode;
+        c_state_flag_fuzzy_pinyin_enabled or c_state_flag_debug_mode or
+        c_state_flag_expand_candidates;
     c_engine_result_flag_async_pending = $01;
     c_engine_result_known_flags = c_engine_result_flag_async_pending;
     c_shortcut_flag_shift = $01;
@@ -578,6 +588,62 @@ begin
     end;
 end;
 
+function nc_encode_candidate_action_payload(const revision: QWord;
+    const page_index, candidate_index: Integer; const remove: Boolean;
+    const expected_query, expected_text, expected_comment: string): TBytes;
+var writer: TncIpcPayloadWriter;
+begin
+    if (revision = 0) or (page_index < 0) or (candidate_index < 0) or
+        (candidate_index >= c_max_candidate_page_size) then
+        raise EncIpcPayloadError.Create('Invalid candidate action');
+    writer := TncIpcPayloadWriter.Create;
+    try
+        WritePayloadHeader(writer);
+        writer.WriteUInt64(revision);
+        writer.WriteInt32(page_index);
+        writer.WriteInt32(candidate_index);
+        writer.WriteBoolean(remove);
+        writer.WriteString(expected_query);
+        writer.WriteString(expected_text);
+        writer.WriteString(expected_comment);
+        Result := writer.Finish;
+    finally
+        writer.Free;
+    end;
+end;
+
+function nc_try_decode_candidate_action_payload(const payload: TBytes;
+    out revision: QWord; out page_index, candidate_index: Integer;
+    out remove: Boolean;
+    out expected_query, expected_text, expected_comment, error_text: string): Boolean;
+var reader: TncIpcPayloadReader;
+begin
+    revision := 0;
+    page_index := -1;
+    candidate_index := -1;
+    remove := False;
+    expected_query := '';
+    expected_text := '';
+    expected_comment := '';
+    reader := TncIpcPayloadReader.Create(payload);
+    try
+        Result := ReadPayloadHeader(reader) and reader.ReadUInt64(revision) and
+            reader.ReadInt32(page_index) and reader.ReadInt32(candidate_index) and
+            reader.ReadBoolean(remove) and reader.ReadString(expected_query) and
+            reader.ReadString(expected_text) and reader.ReadString(expected_comment);
+        if Result and ((revision = 0) or (page_index < 0) or
+            (candidate_index < 0) or (candidate_index >= c_max_candidate_page_size)) then
+        begin
+            reader.SetError('Invalid candidate action');
+            Result := False;
+        end;
+        Result := Result and reader.Finish(error_text);
+        if not Result then reader.Finish(error_text);
+    finally
+        reader.Free;
+    end;
+end;
+
 function nc_encode_remove_candidate_payload(const candidate_index: Integer;
     const expected_query, expected_text, expected_comment: string): TBytes;
 var
@@ -717,6 +783,70 @@ begin
     end;
 end;
 
+procedure WriteCandidate(const writer: TncIpcPayloadWriter;
+    const candidate: TncCandidate);
+begin
+            writer.WriteByte(Ord(candidate.source));
+            writer.WriteByte(Ord(candidate.display_kind));
+            writer.WriteBoolean(candidate.has_dict_weight);
+            writer.WriteBoolean(candidate.deletable);
+            writer.WriteInt32(candidate.score);
+            writer.WriteInt32(candidate.dict_weight);
+            writer.WriteInt32(candidate.fuzzy_cost);
+            writer.WriteUInt32(nc_fuzzy_pinyin_rules_to_mask(
+                candidate.fuzzy_rules));
+            writer.WriteString(candidate.text);
+            writer.WriteString(candidate.comment);
+end;
+
+function ReadCandidate(const reader: TncIpcPayloadReader;
+    out candidate: TncCandidate): Boolean;
+var
+    source, display_kind: Byte;
+    fuzzy_mask: Cardinal;
+    rule: TncFuzzyPinyinRule;
+begin
+    candidate := Default(TncCandidate);
+            Result := reader.ReadByte(source) and reader.ReadByte(display_kind) and
+                reader.ReadBoolean(candidate.has_dict_weight) and
+                reader.ReadBoolean(candidate.deletable) and
+                reader.ReadInt32(candidate.score) and
+                reader.ReadInt32(candidate.dict_weight) and
+                reader.ReadInt32(candidate.fuzzy_cost) and
+                reader.ReadUInt32(fuzzy_mask) and
+                reader.ReadString(candidate.text) and
+                reader.ReadString(candidate.comment);
+            if Result and (source > Ord(High(TncCandidateSource))) then
+            begin
+                reader.SetError('Engine result contains an invalid candidate source');
+                Result := False;
+            end;
+            if Result and (display_kind > Ord(High(TncCandidateDisplayKind))) then
+            begin
+                reader.SetError('Engine result contains an invalid display kind');
+                Result := False;
+            end;
+            if Result and ((fuzzy_mask and not KnownMask(
+                Ord(High(TncFuzzyPinyinRule)))) <> 0) then
+            begin
+                reader.SetError('Engine result contains invalid fuzzy rules');
+                Result := False;
+            end;
+            if Result then
+            begin
+                candidate.source :=
+                    TncCandidateSource(source);
+                candidate.display_kind :=
+                    TncCandidateDisplayKind(display_kind);
+                candidate.fuzzy_rules := [];
+                for rule := Low(TncFuzzyPinyinRule) to
+                    High(TncFuzzyPinyinRule) do
+                    if (fuzzy_mask and (Cardinal(1) shl Ord(rule))) <> 0 then
+                        Include(candidate.fuzzy_rules,
+                            rule);
+            end;
+end;
+
 function nc_encode_engine_result_payload(const engine_result: TncEngineResult):
     TBytes;
 var
@@ -725,6 +855,7 @@ var
     result_flags: Byte;
     schema_version: Word;
     span: TncPreeditWarningSpan;
+    page: TncCandidatePage;
     last_end: Integer;
 begin
     if Length(engine_result.candidates) > c_ipc_payload_max_candidates then
@@ -737,6 +868,7 @@ begin
         if (Ord(engine_result.completion_source) > Ord(High(TncOneKeyCompletionSource))) or
             ((schema_version = 3) and (engine_result.completion_text = '')) then
             raise EncIpcPayloadError.Create('Invalid completion source');
+        if engine_result.candidate_revision <> 0 then schema_version := 4;
         WritePayloadHeaderVersion(writer, schema_version);
         writer.WriteBoolean(engine_result.handled);
         writer.WriteUInt16(0);
@@ -755,19 +887,7 @@ begin
         writer.WriteString(engine_result.error_text);
         writer.WriteUInt32(Length(engine_result.candidates));
         for candidate in engine_result.candidates do
-        begin
-            writer.WriteByte(Ord(candidate.source));
-            writer.WriteByte(Ord(candidate.display_kind));
-            writer.WriteBoolean(candidate.has_dict_weight);
-            writer.WriteBoolean(candidate.deletable);
-            writer.WriteInt32(candidate.score);
-            writer.WriteInt32(candidate.dict_weight);
-            writer.WriteInt32(candidate.fuzzy_cost);
-            writer.WriteUInt32(nc_fuzzy_pinyin_rules_to_mask(
-                candidate.fuzzy_rules));
-            writer.WriteString(candidate.text);
-            writer.WriteString(candidate.comment);
-        end;
+            WriteCandidate(writer, candidate);
         if schema_version >= 2 then
         begin
             if Length(engine_result.preedit_warnings) > 1024 then
@@ -795,6 +915,21 @@ begin
             writer.WriteByte(0);
             writer.WriteUInt16(0);
         end;
+        if schema_version >= 4 then
+        begin
+            if Length(engine_result.candidate_pages) > 3 then
+                raise EncIpcPayloadError.Create('Too many candidate rows');
+            writer.WriteUInt64(engine_result.candidate_revision);
+            writer.WriteUInt32(Length(engine_result.candidate_pages));
+            for page in engine_result.candidate_pages do
+            begin
+                if Length(page.candidates) > c_max_candidate_page_size then
+                    raise EncIpcPayloadError.Create('Too many candidates in row');
+                writer.WriteInt32(page.page_index);
+                writer.WriteUInt32(Length(page.candidates));
+                for candidate in page.candidates do WriteCandidate(writer, candidate);
+            end;
+        end;
         Result := writer.Finish;
     finally
         writer.Free;
@@ -813,10 +948,9 @@ var
     result_flags: Byte;
     candidate_count: Cardinal;
     candidate_index: Integer;
-    source: Byte;
-    display_kind: Byte;
-    fuzzy_mask: Cardinal;
-    rule: TncFuzzyPinyinRule;
+    row_count, row_candidates: Cardinal;
+    row_index, item_index, previous_page: Integer;
+    active_page_found: Boolean;
 begin
     nc_initialize_engine_result(engine_result);
     candidate_count := 0;
@@ -824,7 +958,7 @@ begin
     reader := TncIpcPayloadReader.Create(payload);
     try
         Result := ReadPayloadHeaderVersion(reader, version) and
-            ((version >= 1) and (version <= 3)) and
+            ((version >= 1) and (version <= 4)) and
             reader.ReadBoolean(engine_result.handled) and
             reader.ReadUInt16(reserved16) and reader.ReadByte(result_flags) and
             reader.ReadInt32(engine_result.selected_index) and
@@ -837,7 +971,7 @@ begin
             reader.ReadString(engine_result.completion_text) and
             reader.ReadString(engine_result.error_text) and
             reader.ReadUInt32(candidate_count);
-        if (version < 1) or (version > 3) then
+        if (version < 1) or (version > 4) then
             reader.SetError('Unsupported engine result version');
         if Result and ((reserved16 <> 0) or
             ((result_flags and not c_engine_result_known_flags) <> 0)) then
@@ -865,44 +999,7 @@ begin
         begin
             if not Result then
                 Break;
-            Result := reader.ReadByte(source) and reader.ReadByte(display_kind) and
-                reader.ReadBoolean(engine_result.candidates[candidate_index].has_dict_weight) and
-                reader.ReadBoolean(engine_result.candidates[candidate_index].deletable) and
-                reader.ReadInt32(engine_result.candidates[candidate_index].score) and
-                reader.ReadInt32(engine_result.candidates[candidate_index].dict_weight) and
-                reader.ReadInt32(engine_result.candidates[candidate_index].fuzzy_cost) and
-                reader.ReadUInt32(fuzzy_mask) and
-                reader.ReadString(engine_result.candidates[candidate_index].text) and
-                reader.ReadString(engine_result.candidates[candidate_index].comment);
-            if Result and (source > Ord(High(TncCandidateSource))) then
-            begin
-                reader.SetError('Engine result contains an invalid candidate source');
-                Result := False;
-            end;
-            if Result and (display_kind > Ord(High(TncCandidateDisplayKind))) then
-            begin
-                reader.SetError('Engine result contains an invalid display kind');
-                Result := False;
-            end;
-            if Result and ((fuzzy_mask and not KnownMask(
-                Ord(High(TncFuzzyPinyinRule)))) <> 0) then
-            begin
-                reader.SetError('Engine result contains invalid fuzzy rules');
-                Result := False;
-            end;
-            if Result then
-            begin
-                engine_result.candidates[candidate_index].source :=
-                    TncCandidateSource(source);
-                engine_result.candidates[candidate_index].display_kind :=
-                    TncCandidateDisplayKind(display_kind);
-                engine_result.candidates[candidate_index].fuzzy_rules := [];
-                for rule := Low(TncFuzzyPinyinRule) to
-                    High(TncFuzzyPinyinRule) do
-                    if (fuzzy_mask and (Cardinal(1) shl Ord(rule))) <> 0 then
-                        Include(engine_result.candidates[candidate_index].fuzzy_rules,
-                            rule);
-            end;
+            Result := ReadCandidate(reader, engine_result.candidates[candidate_index]);
         end;
         if Result and (version >= 2) then
         begin
@@ -932,16 +1029,66 @@ begin
         begin
             Result := reader.ReadByte(completion_source) and
                 reader.ReadByte(warning_reserved) and reader.ReadUInt16(reserved16);
-            Result := Result and (completion_source > Ord(okcs_none)) and
+            Result := Result and ((completion_source > Ord(okcs_none)) or (version >= 4)) and
                 (completion_source <= Ord(High(TncOneKeyCompletionSource))) and
                 (warning_reserved = 0) and (reserved16 = 0) and
-                (engine_result.completion_text <> '');
+                ((completion_source = Ord(okcs_none)) = (engine_result.completion_text = ''));
             if Result then
                 engine_result.completion_source := TncOneKeyCompletionSource(completion_source)
             else reader.SetError('Invalid completion source payload');
         end
         else if Result and (engine_result.completion_text <> '') then
             engine_result.completion_source := okcs_base_exact;
+        if Result and (version >= 4) then
+        begin
+            Result := reader.ReadUInt64(engine_result.candidate_revision) and
+                (engine_result.candidate_revision <> 0) and
+                reader.ReadUInt32(row_count) and (row_count <= 3);
+            if Result then SetLength(engine_result.candidate_pages, row_count);
+            previous_page := -1;
+            active_page_found := (candidate_count = 0) and (row_count = 0);
+            row_index := 0;
+            while Result and (row_index < Integer(row_count)) do
+            begin
+                Result := reader.ReadInt32(engine_result.candidate_pages[row_index].page_index) and
+                    reader.ReadUInt32(row_candidates) and (row_candidates > 0) and
+                    (row_candidates <= c_max_candidate_page_size);
+                if Result then
+                    with engine_result.candidate_pages[row_index] do
+                    begin
+                        Result := (page_index >= 0) and (page_index < engine_result.page_count) and
+                            ((row_index = 0) or (page_index = previous_page + 1));
+                        previous_page := page_index;
+                        SetLength(candidates, row_candidates);
+                        item_index := 0;
+                        while Result and (item_index < Integer(row_candidates)) do
+                        begin
+                            Result := ReadCandidate(reader, candidates[item_index]);
+                            Inc(item_index);
+                        end;
+                        if Result and (page_index = engine_result.page_index) then
+                        begin
+                            active_page_found := True;
+                            Result := row_candidates = candidate_count;
+                            item_index := 0;
+                            while Result and (item_index < Integer(row_candidates)) do
+                            begin
+                                Result := (candidates[item_index].text = engine_result.candidates[item_index].text) and
+                                    (candidates[item_index].comment = engine_result.candidates[item_index].comment) and
+                                    (candidates[item_index].deletable = engine_result.candidates[item_index].deletable) and
+                                    (candidates[item_index].source = engine_result.candidates[item_index].source) and
+                                    (candidates[item_index].display_kind = engine_result.candidates[item_index].display_kind);
+                                Inc(item_index);
+                            end;
+                        end;
+                    end;
+                Inc(row_index);
+            end;
+            Result := Result and active_page_found and
+                (engine_result.selected_index >= -1) and
+                (engine_result.selected_index < Integer(candidate_count));
+            if not Result then reader.SetError('Invalid candidate viewport');
+        end;
         Result := Result and reader.Finish(error_text);
         if not Result then
         begin
@@ -974,6 +1121,8 @@ begin
             flags := flags or c_state_flag_fuzzy_pinyin_enabled;
         if state.debug_mode then
             flags := flags or c_state_flag_debug_mode;
+        if state.candidate_expand_on_paging then
+            flags := flags or c_state_flag_expand_candidates;
         writer.WriteByte(flags);
         writer.WriteUInt32(nc_fuzzy_pinyin_rules_to_mask(
             state.fuzzy_pinyin_rules));
@@ -1090,6 +1239,12 @@ begin
             reader.SetError('State payload contains invalid flags');
             Result := False;
         end;
+        if Result and (version < 6) and
+            ((flags and c_state_flag_expand_candidates) <> 0) then
+        begin
+            reader.SetError('Candidate expansion requires state schema 6');
+            Result := False;
+        end;
         if Result and (version = c_ipc_payload_schema_version) and
             ((flags and c_state_flag_fuzzy_pinyin_enabled) <> 0) then
         begin
@@ -1145,6 +1300,7 @@ begin
             state.fuzzy_pinyin_rules :=
                 nc_fuzzy_pinyin_rules_from_mask(fuzzy_rules_mask);
             state.candidate_page_size := candidate_page_size;
+            state.candidate_expand_on_paging := (flags and c_state_flag_expand_candidates) <> 0;
             state.candidate_page_key_scheme :=
                 TncCandidatePageKeyScheme(candidate_page_key_scheme);
             state.one_key_completion_key :=

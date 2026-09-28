@@ -8,7 +8,8 @@ interface
 
 uses
     Contnrs,
-    nc_types;
+    nc_types,
+    nc_candidate_paging;
 
 type
     TncEngineContext = class
@@ -21,6 +22,9 @@ type
         FComposition: string;
         FCandidates: TncCandidateList;
         FSelectedIndex: Integer;
+        FViewport: TncCandidateViewport;
+        FCandidatePages: TncCandidatePages;
+        FCandidateRevision: QWord;
         FCompletionText: string;
         FCompletionPinyin: string;
         FCompletionSource: TncOneKeyCompletionSource;
@@ -37,6 +41,9 @@ type
         procedure AppendComposition(const value: string);
         function DeleteLastCompositionCharacter: Boolean;
         procedure SetCandidates(const value: TncCandidateList);
+        procedure UpdateViewport(const enabled, input_changed: Boolean;
+            const current_page, total_pages: Integer; const expand_requested: Boolean);
+        procedure PublishCandidatePages(const pages: TncCandidatePages);
         procedure SetCompletion(const full_pinyin: string;
             const text: string; const source: TncOneKeyCompletionSource = okcs_none);
         procedure BeginModifierShortcut(const action: TncShortcutAction;
@@ -56,6 +63,9 @@ type
         property Composition: string read FComposition;
         property Candidates: TncCandidateList read FCandidates;
         property SelectedIndex: Integer read FSelectedIndex;
+        property Viewport: TncCandidateViewport read FViewport;
+        property CandidatePages: TncCandidatePages read FCandidatePages;
+        property CandidateRevision: QWord read FCandidateRevision;
         property CompletionText: string read FCompletionText;
         property CompletionPinyin: string read FCompletionPinyin;
         property CompletionSource: TncOneKeyCompletionSource read FCompletionSource;
@@ -111,9 +121,24 @@ begin
     FComposition := '';
     SetLength(FCandidates, 0);
     FSelectedIndex := -1;
+    FViewport := Default(TncCandidateViewport);
+    FCandidatePages := nil;
+    Inc(FCandidateRevision);
     FCompletionText := '';
     FCompletionPinyin := '';
     FCompletionSource := okcs_none;
+end;
+
+procedure TncEngineContext.UpdateViewport(const enabled, input_changed: Boolean;
+    const current_page, total_pages: Integer; const expand_requested: Boolean);
+begin
+    FViewport.update(enabled, input_changed, current_page, total_pages, expand_requested);
+end;
+
+procedure TncEngineContext.PublishCandidatePages(const pages: TncCandidatePages);
+begin
+    FCandidatePages := Copy(pages, 0, Length(pages));
+    Inc(FCandidateRevision);
 end;
 
 procedure TncEngineContext.SetComposition(const value: string);

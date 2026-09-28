@@ -54,6 +54,8 @@ type
             out key_code: Word; out key_state: TncKeyState): Boolean;
         procedure PrefetchLongNeuralCompletion(const context: TncEngineContext);
         procedure SyncContext(const context: TncEngineContext);
+        procedure NormalizeCandidates(var candidates: TncCandidateList;
+            const query: string);
         procedure PopulateResult(const context: TncEngineContext;
             var engine_result: TncEngineResult);
         function QueueLongNeuralCompletion(
@@ -87,6 +89,10 @@ type
             const generation_id: QWord): TncEngineResult; override;
         function RemoveCandidateVerified(const context_id, generation_id: QWord;
             const candidate_index: Integer; const expected_query, expected_text,
+            expected_comment: string): TncEngineResult; override;
+        function CandidateActionVerified(const context_id, generation_id,
+            revision: QWord; const page_index, candidate_index: Integer;
+            const remove: Boolean; const expected_query, expected_text,
             expected_comment: string): TncEngineResult; override;
         function ContextCount: Integer;
         procedure ClearContexts;
@@ -232,6 +238,7 @@ begin
     config.full_width_mode := state.full_width_mode;
     config.punctuation_full_width := state.punctuation_full_width;
     config.candidate_page_size := state.candidate_page_size;
+    config.candidate_expand_on_paging := state.candidate_expand_on_paging;
     config.candidate_page_key_scheme :=
         state.candidate_page_key_scheme;
     config.one_key_completion_key := state.one_key_completion_key;
@@ -254,6 +261,8 @@ begin
         new_state.punctuation_full_width) or
         (old_state.candidate_page_size <>
         new_state.candidate_page_size) or
+        (old_state.candidate_expand_on_paging <>
+        new_state.candidate_expand_on_paging) or
         (old_state.candidate_page_key_scheme <>
         new_state.candidate_page_key_scheme) or
         (old_state.one_key_completion_key <>
@@ -301,6 +310,7 @@ begin
     next_state.punctuation_full_width :=
         engine_config.punctuation_full_width;
     next_state.candidate_page_size := engine_config.candidate_page_size;
+    next_state.candidate_expand_on_paging := engine_config.candidate_expand_on_paging;
     next_state.candidate_page_key_scheme :=
         engine_config.candidate_page_key_scheme;
     next_state.one_key_completion_key :=
@@ -468,18 +478,11 @@ begin
     FLocalCompletionHost.Prefetch(task);
 end;
 
-procedure TncEngineService.SyncContext(const context: TncEngineContext);
+procedure TncEngineService.NormalizeCandidates(var candidates: TncCandidateList;
+    const query: string);
 var
-    candidates: TncCandidateList;
-    completion: TncOneKeyCompletion;
-    query: string;
     index: Integer;
 begin
-    if (context = nil) or (FEngine = nil) then
-        Exit;
-    PrefetchLongNeuralCompletion(context);
-    candidates := FEngine.get_candidates;
-    query := FEngine.get_last_lookup_key;
     for index := 0 to High(candidates) do
     begin
         // Older candidate construction paths do not initialize metadata that
@@ -496,6 +499,22 @@ begin
                 FEngine.is_user_or_literal_entry(query,
                 candidates[index].text);
     end;
+end;
+
+procedure TncEngineService.SyncContext(const context: TncEngineContext);
+var
+    candidates: TncCandidateList;
+    completion: TncOneKeyCompletion;
+begin
+    if (context = nil) or (FEngine = nil) then Exit;
+    PrefetchLongNeuralCompletion(context);
+    candidates := FEngine.get_candidates;
+    NormalizeCandidates(candidates, FEngine.get_last_lookup_key);
+    context.UpdateViewport(FConfig.candidate_expand_on_paging,
+        context.Composition <> FEngine.get_composition_text,
+        FEngine.get_page_index, FEngine.get_page_count,
+        FEngine.candidate_paging_expanded);
+    FEngine.set_candidate_paging_expanded(context.Viewport.expanded);
     context.SetComposition(FEngine.get_composition_text);
     context.SetCandidates(candidates);
     context.SelectCandidate(FEngine.get_selected_index);
@@ -508,6 +527,7 @@ procedure TncEngineService.PopulateResult(const context: TncEngineContext;
 var
     spans: TncPinyinDiagnosticSpans;
     raw: string;
+    pages: TncCandidatePages;
     index, offset: Integer;
 begin
     if (context = nil) or (FEngine = nil) then
@@ -537,6 +557,22 @@ begin
     engine_result.selected_index := context.SelectedIndex;
     engine_result.page_index := FEngine.get_page_index;
     engine_result.page_count := FEngine.get_page_count;
+    SetLength(pages, context.Viewport.row_count);
+    for index := 0 to High(pages) do
+    begin
+        pages[index].page_index := context.Viewport.first_page + index;
+        if pages[index].page_index = engine_result.page_index then
+            pages[index].candidates := Copy(engine_result.candidates)
+        else
+        begin
+            pages[index].candidates := FEngine.get_candidate_page_snapshot(
+                pages[index].page_index);
+            NormalizeCandidates(pages[index].candidates, engine_result.query_text);
+        end;
+    end;
+    context.PublishCandidatePages(pages);
+    engine_result.candidate_pages := pages;
+    engine_result.candidate_revision := context.CandidateRevision;
     engine_result.completion_text := context.CompletionText;
     engine_result.completion_source := context.CompletionSource;
 end;
@@ -945,6 +981,66 @@ begin
             finished.completion_result);
     Result.handled := True;
     PopulateResult(context, Result);
+end;
+
+function TncEngineService.CandidateActionVerified(const context_id, generation_id,
+    revision: QWord; const page_index, candidate_index: Integer;
+    const remove: Boolean; const expected_query, expected_text,
+    expected_comment: string): TncEngineResult;
+var
+    context: TncEngineContext;
+    page: TncCandidatePage;
+    snapshot: TncCandidateList;
+    published: Boolean;
+    key_event: TncKeyEvent;
+begin
+    nc_initialize_engine_result(Result);
+    Result.error_code := PrepareContext(context_id, generation_id, context);
+    if Result.error_code <> 0 then Exit;
+    if not context.Active then Exit;
+    try
+        if not ActivateContext(context) then
+        begin
+            Result.error_code := c_engine_error_dictionary_unavailable;
+            Result.error_text := FDictionaryError;
+            Exit;
+        end;
+        published := False;
+        if (revision <> 0) and (revision = context.CandidateRevision) and
+            (FEngine.get_last_lookup_key = expected_query) and
+            (candidate_index >= 0) then
+            for page in context.CandidatePages do
+                if (page.page_index = page_index) and
+                    (candidate_index < Length(page.candidates)) then
+                    published := (page.candidates[candidate_index].text = expected_text) and
+                        (page.candidates[candidate_index].comment = expected_comment) and
+                        ((not remove) or page.candidates[candidate_index].deletable);
+        snapshot := FEngine.get_candidate_page_snapshot(page_index);
+        if published and (candidate_index < Length(snapshot)) and
+            (snapshot[candidate_index].text = expected_text) and
+            (snapshot[candidate_index].comment = expected_comment) and
+            FEngine.activate_candidate_page(page_index, candidate_index) then
+        begin
+            if remove then
+            begin
+                SyncContext(context);
+                Result.handled := RemoveCandidate(context, candidate_index);
+            end
+            else
+            begin
+                key_event := Default(TncKeyEvent);
+                key_event.special_key := sk_space;
+                Exit(ProcessKey(context_id, generation_id, key_event));
+            end;
+        end;
+        PopulateResult(context, Result);
+    except
+        on exception_value: Exception do
+        begin
+            Result.error_code := c_engine_error_dictionary_query;
+            Result.error_text := UnicodeString(exception_value.Message);
+        end;
+    end;
 end;
 
 function TncEngineService.RemoveCandidateVerified(const context_id,

@@ -422,6 +422,7 @@ const
         '''setting.fuzzy_pinyin_enabled'', ' +
         '''setting.fuzzy_pinyin_rules'', ' +
         '''setting.candidate_page_size'', ' +
+        '''setting.candidate_expand_on_paging'', ' +
         '''setting.candidate_page_key_scheme'', ' +
         '''setting.one_key_completion_key'', ' +
         '''setting.debug_mode'', ' +
@@ -489,6 +490,8 @@ begin
                 state.full_width_mode := setting_value <> 0
             else if key_name = 'setting.punctuation_full_width' then
                 state.punctuation_full_width := setting_value <> 0
+            else if key_name = 'setting.candidate_expand_on_paging' then
+                state.candidate_expand_on_paging := setting_value <> 0
             else if (key_name = 'setting.candidate_page_size') and
                 (setting_value >= c_min_candidate_page_size) and
                 (setting_value <= c_max_candidate_page_size) then
@@ -592,6 +595,9 @@ begin
         ExecutePairStatement(c_upsert_setting,
         'setting.candidate_page_size', UTF8Decode(IntToStr(
         state.candidate_page_size))) and
+        ExecutePairStatement(c_upsert_setting,
+        'setting.candidate_expand_on_paging', UTF8Decode(IntToStr(
+        Ord(state.candidate_expand_on_paging)))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.candidate_page_key_scheme', UTF8Decode(IntToStr(
         Ord(state.candidate_page_key_scheme)))) and

@@ -56,7 +56,7 @@
     NSPopUpButton *_scheme, *_dictionary, *_pageKeys, *_completionKey, *_pageSize, *_theme;
     NSSlider *_fontSize;
     NSTextField *_fontSizeLabel, *_status;
-    NSButton *_fullWidth, *_punctuation, *_fuzzy, *_retry, *_resetAppearance, *_logging;
+    NSButton *_fullWidth, *_punctuation, *_fuzzy, *_retry, *_resetAppearance, *_logging, *_expandCandidates;
     NSComboBox *_fontFamily;
     NSArray<NSString *> *_fontFamilies;
     NSMutableArray<NSButton *> *_rules, *_shortcutEnabled;
@@ -204,6 +204,7 @@
     _theme=[self popup:CassotisCandidateThemeNames() identifier:@"candidate-theme"];
     _theme.action=@selector(appearanceChanged:);
     _pageSize=[self popup:@[@"3 项",@"4 项",@"5 项",@"6 项",@"7 项",@"8 项",@"9 项"] identifier:@"candidate-page-size"];
+    _expandCandidates=[self check:@"翻页时展开为三行候选" identifier:@"candidate-expand-on-paging"];
     _fontFamilies=[NSFontManager.sharedFontManager.availableFontFamilies sortedArrayUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
     _fontFamily=[[CassotisFontComboBox alloc] init]; _fontFamily.usesDataSource=YES; _fontFamily.dataSource=self; _fontFamily.completes=YES;
     [_fontFamily.widthAnchor constraintEqualToConstant:220].active=YES;
@@ -221,7 +222,7 @@
     NSButton *resetAppearance=[NSButton buttonWithTitle:@"恢复默认外观" target:self action:@selector(resetAppearance:)];
     _resetAppearance=resetAppearance;
     [self section:@"外观" views:@[[self card:@[[self row:@"候选字体" control:_fontFamily],[self row:@"大小" control:sizeControls],
-        [self row:@"配色" control:_theme],[self row:@"每页候选" control:_pageSize]]],
+        [self row:@"配色" control:_theme],[self row:@"每页候选" control:_pageSize],_expandCandidates]],
         [self hint:@"预览"],_preview,[self row:@"" control:resetAppearance]]];
 
     _fuzzy=[self check:@"启用模糊拼音" identifier:@"fuzzy-pinyin"]; _rules=[NSMutableArray array];
@@ -412,6 +413,17 @@
     const char *samples[]={"落霞","落下","落","洛","罗","络","骆","珞","螺"};
     NSInteger count=MIN(9,MAX(3,_pageSize.indexOfSelectedItem+3));
     for(NSInteger i=0;i<count;++i) result.candidates.push_back({samples[i],"",0,0,false});
+    if(_expandCandidates.state) {
+        result.pages=3; result.page=1;
+        const char *extra[][9]={{"罗夏","洛下","落花","落雪","落日","落叶","落笔","落定","落幕"},
+                              {"落座","落地","落款","落脚","落成","落户","落实","落伍","落单"}};
+        for(int row=0;row<3;++row) {
+            cassotis::CandidatePage page; page.page=row;
+            if(row==1) page.candidates=result.candidates;
+            else for(NSInteger i=0;i<count;++i) page.candidates.push_back({extra[row/2][i],"",0,0,false});
+            result.candidatePages.push_back(page);
+        }
+    }
     result.completion="落霞与孤鹜齐飞";
     result.completionSource=cassotis::CompletionSource::BaseExact;
     CGFloat width=_preview.bounds.size.width?:500;
@@ -424,7 +436,7 @@
 }
 - (void)resetAppearance:(id)sender {
     (void)sender; _fontSize.doubleValue=1; _fontFamily.stringValue=@"PingFang SC";
-    [_theme selectItemAtIndex:0]; [_pageSize selectItemAtIndex:6]; [self appearanceChanged:nil];
+    [_theme selectItemAtIndex:0]; [_pageSize selectItemAtIndex:6]; _expandCandidates.state=0; [self appearanceChanged:nil];
 }
 - (void)reloadSettings {
     _loading=YES; _ready=NO; CassotisStartEngine(); cassotis::EngineClient engine;
@@ -434,6 +446,7 @@
         [_scheme selectItemAtIndex:_state.scheme]; [_dictionary selectItemAtIndex:_state.dictionary];
         [_pageKeys selectItemAtIndex:_state.pageKeys]; [_completionKey selectItemAtIndex:_state.completionKey];
         [_pageSize selectItemAtIndex:_state.pageSize-3]; _fullWidth.state=(_state.flags&1)?1:0;
+        _expandCandidates.state=(_state.flags&16)?1:0;
         _punctuation.state=(_state.flags&2)?1:0; _fuzzy.state=(_state.flags&4)?1:0;
         for(NSUInteger i=0;i<_rules.count;++i) { _rules[i].state=(_state.fuzzy&(1<<i))?1:0; _rules[i].enabled=_fuzzy.state!=0; }
         for(int i=0;i<5;++i) {
@@ -454,7 +467,7 @@
     _fontSize.doubleValue=best; _loading=NO;
     // Do not present placeholder engine state as editable user preferences.
     for(NSControl *control in @[_scheme,_dictionary,_pageKeys,_completionKey,_pageSize,_theme,_fontSize,
-        _fontFamily,_fullWidth,_punctuation,_fuzzy,_resetAppearance]) control.enabled=_ready;
+        _fontFamily,_fullWidth,_punctuation,_fuzzy,_resetAppearance,_expandCandidates]) control.enabled=_ready;
     for(NSButton *control in _shortcutEnabled) control.enabled=_ready;
     for(NSButton *control in _rules) control.enabled=_ready && _fuzzy.state!=0;
     for(NSUInteger i=0;i<_shortcuts.count;++i) _shortcuts[i].enabled=_ready && _shortcutEnabled[i].state!=0;
@@ -486,7 +499,7 @@
     state.scheme=(uint8_t)_scheme.indexOfSelectedItem; state.dictionary=(uint8_t)_dictionary.indexOfSelectedItem;
     state.pageKeys=(uint8_t)_pageKeys.indexOfSelectedItem; state.completionKey=(uint8_t)_completionKey.indexOfSelectedItem;
     state.pageSize=(uint8_t)(_pageSize.indexOfSelectedItem+3);
-    state.flags=(_fullWidth.state?1:0)|(_punctuation.state?2:0)|(_fuzzy.state?4:0); state.fuzzy=0;
+    state.flags=(_fullWidth.state?1:0)|(_punctuation.state?2:0)|(_fuzzy.state?4:0)|(_expandCandidates.state?16:0)|(_state.flags&8); state.fuzzy=0;
     for(NSUInteger i=0;i<_rules.count;++i) if(_rules[i].state) state.fuzzy|=1<<i;
     for(int i=0;i<5;++i) {
         if(_shortcuts[i].recording) { _status.stringValue=@"请先完成快捷键录制，或按 Esc 取消。"; return NO; }

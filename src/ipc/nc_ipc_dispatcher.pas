@@ -88,7 +88,9 @@ var
     active: Boolean;
     surrounding_text: string;
     cursor_offset: Integer;
-    candidate_index: Integer;
+    candidate_index, page_index: Integer;
+    revision: QWord;
+    remove: Boolean;
     expected_query, expected_text, expected_comment: string;
     key_event: TncKeyEvent;
     engine_result: TncEngineResult;
@@ -203,6 +205,22 @@ begin
                 response.message_type := imt_engine_result;
                 response.payload := nc_encode_engine_result_payload(
                     engine_result);
+            end;
+        imt_candidate_action:
+            begin
+                if not nc_try_decode_candidate_action_payload(request.payload,
+                    revision, page_index, candidate_index, remove,
+                    expected_query, expected_text, expected_comment, payload_error) then
+                begin
+                    SetErrorResponse(request, response,
+                        c_ipc_dispatch_error_invalid_payload, payload_error);
+                    Exit;
+                end;
+                engine_result := FEngine.CandidateActionVerified(request.context_id,
+                    request.generation_id, revision, page_index, candidate_index,
+                    remove, expected_query, expected_text, expected_comment);
+                response.message_type := imt_engine_result;
+                response.payload := nc_encode_engine_result_payload(engine_result);
             end;
         imt_remove_candidate:
             begin

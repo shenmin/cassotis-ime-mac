@@ -32,6 +32,10 @@ struct Candidate {
     uint8_t source = 0, kind = 0;
     bool deletable = false;
 };
+struct CandidatePage {
+    int32_t page = 0;
+    std::vector<Candidate> candidates;
+};
 struct PreeditWarning { uint32_t start = 0, length = 0; uint8_t kind = 0; };
 enum class CompletionSource : uint8_t { None, UserExact, BaseExact, Transition, LongTransition, LongNeural, DocumentCopy, ExactTailFallback };
 struct Result {
@@ -40,6 +44,8 @@ struct Result {
     std::string commit, preedit, query, completion;
     CompletionSource completionSource = CompletionSource::None;
     std::vector<Candidate> candidates;
+    std::vector<CandidatePage> candidatePages;
+    uint64_t candidateRevision = 0;
     std::vector<PreeditWarning> warnings;
 };
 struct Key {
@@ -81,6 +87,8 @@ public:
     Result key(const Key &value);
     Result poll();
     Result removeCandidate(int32_t index, const std::string &query, const Candidate &expected);
+    Result candidateAction(uint64_t revision, int32_t page, int32_t index, bool remove,
+        const std::string &query, const Candidate &expected);
     State state();
     void setState(const State &state);
     void clearLearning();

@@ -29,6 +29,7 @@ struct LocalRepairJoint {
         options.SetInterOpNumThreads(1);
         options.AddConfigEntry("session.intra_op.allow_spinning", "0");
         options.AddConfigEntry("session.inter_op.allow_spinning", "0");
+        UseReleasableInitializers(options);
         return options;
     }
     void warm_heads() {

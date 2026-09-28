@@ -25,8 +25,16 @@ static NSColor *rgb(uint32_t value) {
     return [NSColor colorWithSRGBRed:((value>>16)&255)/255.0 green:((value>>8)&255)/255.0
         blue:(value&255)/255.0 alpha:1];
 }
+static NSColor *blend(NSColor *background, NSColor *foreground, CGFloat fraction) {
+    auto channel=[&](CGFloat back,CGFloat front) {
+        return round(255*(back*(1-fraction)+front*fraction))/255;
+    };
+    return [NSColor colorWithSRGBRed:channel(background.redComponent,foreground.redComponent)
+        green:channel(background.greenComponent,foreground.greenComponent)
+        blue:channel(background.blueComponent,foreground.blueComponent) alpha:1];
+}
 CassotisCandidateColors CassotisColors(NSInteger theme, NSAppearance *appearance) {
-    // Exact RGB values from Windows 1.25.0 src/ui/nc_candidate_theme.pas.
+    // Exact RGB values from Windows 1.29.0 src/ui/nc_candidate_theme.pas.
     static const uint32_t palettes[][13]={
         {0xfcfdff,0xd6dfec,0x181818,0x627080,0x707a86,0x2e7d32,0x1d65c1,0xe8f0fe,0xadc6eb,0x141414,0x1b5e20,0x174f9a,0x4c5662},
         {0xf8f5ee,0xe0d8ca,0x242b30,0x706a60,0x787268,0x478053,0x2768a8,0xeae1d2,0xccbea9,0x1e2226,0x2f6c3c,0x1d568f,0x5f584e},
@@ -95,8 +103,10 @@ CassotisCandidateColors CassotisColors(NSInteger theme, NSAppearance *appearance
 @interface CassotisCandidateContent : NSView
 @property(nonatomic) NSSize preferredSize;
 @property(nonatomic) CGFloat rowHeight;
-@property(nonatomic, strong) NSArray<NSView *> *items;
-@property(nonatomic, strong) NSArray<NSNumber *> *itemWidths;
+@property(nonatomic, strong) NSArray<NSArray<NSView *> *> *rows;
+@property(nonatomic, strong) NSView *activeRow;
+@property(nonatomic, strong) NSView *activeRowIndicator;
+@property(nonatomic) NSInteger activeRowIndex;
 @property(nonatomic, strong) NSView *footer;
 @property(nonatomic, strong) NSView *separator;
 @property(nonatomic, strong) NSButton *completion;
@@ -111,29 +121,37 @@ CassotisCandidateColors CassotisColors(NSInteger theme, NSAppearance *appearance
     [super layout];
     constexpr CGFloat padding=8,gap=4;
     CGFloat inner=MAX(0,self.bounds.size.width-2*padding);
-    CGFloat available=MAX(0,inner-gap*MAX(0,(NSInteger)self.items.count-1));
-    // Share the available line fairly between long candidates; short words
-    // keep their natural width. Text truncates, while all nine choices remain
-    // in the same row with their original keyboard indices and full tooltips.
-    std::vector<CGFloat> widths;
-    CGFloat naturalWidth=0;
-    for(NSNumber *width in self.itemWidths) { widths.push_back(width.doubleValue); naturalWidth+=width.doubleValue; }
-    CGFloat low=available,high=available;
-    if(naturalWidth>available) {
-        low=0;
-        for(int step=0;step<32;++step) {
-            CGFloat cap=(low+high)/2,sum=0;
-            for(CGFloat width:widths) sum+=MIN(width,cap);
-            if(sum>available) high=cap; else low=cap;
+    for(NSUInteger row=0;row<self.rows.count;++row) {
+        NSArray<NSView *> *items=self.rows[row];
+        CGFloat available=MAX(0,inner-gap*MAX(0,(NSInteger)items.count-1));
+        // Long text truncates within its row; all nine keyboard choices remain visible.
+        std::vector<CGFloat> widths;
+        CGFloat naturalWidth=0;
+        for(NSView *item in items) {
+            CGFloat width=item.subviews[0].intrinsicContentSize.width;
+            widths.push_back(width); naturalWidth+=width;
         }
-    }
-    CGFloat x=padding;
-    for(NSUInteger i=0;i<self.items.count;++i) {
-        NSView *item=self.items[i]; CGFloat width=floor(MIN(widths[i],low));
-        item.frame=NSMakeRect(x,8+self.rowHeight+5,width,self.rowHeight);
-        item.subviews[0].frame=item.bounds;
-        if(item.subviews.count>1) item.subviews[1].frame=NSMakeRect(MAX(0,width-22),0,MIN(22,width),self.rowHeight);
-        x+=width+gap;
+        CGFloat low=available,high=available;
+        if(naturalWidth>available) {
+            low=0;
+            for(int step=0;step<32;++step) {
+                CGFloat cap=(low+high)/2,sum=0;
+                for(CGFloat width:widths) sum+=MIN(width,cap);
+                if(sum>available) high=cap; else low=cap;
+            }
+        }
+        CGFloat x=padding,y=8+(self.rows.count-row)*self.rowHeight+5;
+        if(NSInteger(row)==self.activeRowIndex) {
+            self.activeRow.frame=NSMakeRect(4,y,self.bounds.size.width-8,self.rowHeight);
+            self.activeRowIndicator.frame=NSMakeRect(1,4,2,MAX(0,self.rowHeight-8));
+        }
+        for(NSUInteger i=0;i<items.count;++i) {
+            NSView *item=items[i]; CGFloat width=floor(MIN(widths[i],low));
+            item.frame=NSMakeRect(x,y,width,self.rowHeight);
+            item.subviews[0].frame=item.bounds;
+            if(item.subviews.count>1) item.subviews[1].frame=NSMakeRect(MAX(0,width-22),0,MIN(22,width),self.rowHeight);
+            x+=width+gap;
+        }
     }
     self.separator.frame=NSMakeRect(padding,8+self.rowHeight+2,inner,1);
     self.footer.frame=NSMakeRect(padding,8,inner,self.rowHeight);
@@ -227,42 +245,63 @@ NSView *CassotisCandidateView(const cassotis::Result &r, CGFloat size, NSString 
     background.layer.borderColor=colors.border.CGColor; background.layer.borderWidth=1;
     background.accessibilityIdentifier=@"candidate-content";
     background.accessibilityLabel=[NSString stringWithFormat:@"候选，第 %d 页，共 %d 页",r.page+1,MAX(1,r.pages)];
-    // Reserve both rows even for empty, pending or changing completion results.
+    // Keep the footer even for empty, pending or changing completion results.
     // Use font metrics rather than the current strings to keep their height fixed.
     background.rowHeight=ceil(MAX(size*1.4,font.ascender-font.descender+font.leading))+8;
-    NSMutableArray<NSView *> *items=[NSMutableArray array];
-    NSMutableArray<NSNumber *> *widths=[NSMutableArray array];
-    CGFloat rowWidth=0; NSInteger i=0;
-    for(const auto &c:r.candidates) {
+    std::vector<cassotis::CandidatePage> pages=r.candidatePages;
+    if(pages.empty()) pages.push_back({r.page,r.candidates});
+    NSMutableArray<NSArray<NSView *> *> *rows=[NSMutableArray array];
+    CGFloat rowWidth=0;
+    if(pages.size()>1) {
+        NSView *active=[[NSView alloc] init]; active.wantsLayer=YES; active.layer.cornerRadius=5;
+        active.layer.backgroundColor=blend(colors.background,colors.selection,0.4).CGColor;
+        active.accessibilityIdentifier=@"candidate-active-row";
+        [background addSubview:active]; background.activeRow=active;
+        NSView *indicator=[[NSView alloc] init]; indicator.wantsLayer=YES;
+        indicator.layer.backgroundColor=blend(colors.selectionBorder,colors.text,0.25).CGColor;
+        indicator.layer.cornerRadius=1; indicator.accessibilityIdentifier=@"candidate-active-row-indicator";
+        [active addSubview:indicator]; background.activeRowIndicator=indicator;
+    }
+    for(const auto &row:pages) {
+        if(row.page==r.page) background.activeRowIndex=rows.count;
+        NSMutableArray<NSView *> *items=[NSMutableArray array];
+        CGFloat currentWidth=0; NSInteger i=0;
+    for(const auto &c:row.candidates) {
         if(i==9) break;
-        BOOL selected=i==r.selected;
+        BOOL active=row.page==r.page, selected=active && i==r.selected;
+        NSInteger tag=active?i:(NSInteger(row.page)+1)*16+i;
+        NSString *prefix=active?[NSString stringWithFormat:@"%ld  ",(long)i+1]:@"   ";
         NSColor *color=c.source==1?(selected?colors.selectedUser:colors.user):
             c.kind==1?(selected?colors.selectedCompound:colors.compound):(selected?colors.selectedText:colors.text);
-        CassotisCandidateButton *button=candidateButton([NSString stringWithFormat:@"%ld  ",(long)i+1],str(c.text),displayComment(c.comment),
+        CassotisCandidateButton *button=candidateButton(prefix,str(c.text),displayComment(c.comment),
             font,color,selected?colors.selectedWeight:colors.weight,selected,colors);
-        button.tag=i; button.target=target; button.action=selection;
+        button.tag=tag; button.target=target; button.action=selection;
         button.accessibilityLabel=[NSString stringWithFormat:@"候选 %ld，%@",(long)i+1,str(c.text)];
-        button.accessibilityIdentifier=[NSString stringWithFormat:@"candidate-%ld",(long)i];
+        button.accessibilityIdentifier=active?[NSString stringWithFormat:@"candidate-%ld",(long)i]:
+            [NSString stringWithFormat:@"candidate-page-%d-%ld",row.page,(long)i];
         NSView *item=[[NSView alloc] init]; [item addSubview:button];
         if(c.deletable) {
             button.trailingInset=14;
             CassotisCandidateRemoveButton *remove=[[CassotisCandidateRemoveButton alloc] init];
             remove.bordered=NO; remove.focusRingType=NSFocusRingTypeNone;
-            remove.title=@"×"; remove.tag=i; remove.target=target; remove.action=deletion;
+            remove.title=@"×"; remove.tag=tag; remove.target=target; remove.action=deletion;
             remove.enabled=target && deletion;
             remove.accessibilityLabel=[@"删除用户词：" stringByAppendingString:str(c.text)];
-            remove.accessibilityIdentifier=[NSString stringWithFormat:@"candidate-delete-%ld",(long)i];
+            remove.accessibilityIdentifier=active?[NSString stringWithFormat:@"candidate-delete-%ld",(long)i]:
+                [NSString stringWithFormat:@"candidate-delete-page-%d-%ld",row.page,(long)i];
             remove.toolTip=remove.accessibilityLabel; [item addSubview:remove];
             if(target && deletion) {
                 NSMenu *menu=[[NSMenu alloc] initWithTitle:@"用户词语"];
                 NSMenuItem *command=[[NSMenuItem alloc] initWithTitle:@"删除此用户词语" action:deletion keyEquivalent:@""];
-                command.target=target; command.representedObject=@[@(revision),@(i)]; [menu addItem:command]; button.menu=menu;
+                command.target=target; command.representedObject=@[@(revision),@(tag)]; [menu addItem:command]; button.menu=menu;
             }
         }
-        [items addObject:item]; [widths addObject:@(button.intrinsicContentSize.width)];
-        rowWidth+=button.intrinsicContentSize.width+(i?4:0); [background addSubview:item]; ++i;
+        [items addObject:item];
+        currentWidth+=button.intrinsicContentSize.width+(i?4:0); [background addSubview:item]; ++i;
     }
-    background.items=items; background.itemWidths=widths;
+        rowWidth=MAX(rowWidth,currentWidth); [rows addObject:items];
+    }
+    background.rows=rows;
     NSView *footer=[[NSView alloc] init]; footer.accessibilityIdentifier=@"candidate-completion-row";
     [background addSubview:footer]; background.footer=footer;
     NSString *key=completionKey==1?@"`":@"Tab";
@@ -289,7 +328,7 @@ NSView *CassotisCandidateView(const cassotis::Result &r, CGFloat size, NSString 
     [background addSubview:separator]; background.separator=separator;
     CGFloat footerWidth=completion.intrinsicContentSize.width+12+20+5+ceil(version.intrinsicContentSize.width);
     if(warning) footerWidth+=ceil(warning.intrinsicContentSize.width)+12;
-    background.preferredSize=NSMakeSize(MIN(maximumWidth,MAX(180,MAX(rowWidth,footerWidth)+16)),2*background.rowHeight+21);
+    background.preferredSize=NSMakeSize(MIN(maximumWidth,MAX(180,MAX(rowWidth,footerWidth)+16)),(rows.count+1)*background.rowHeight+21);
     [background setFrameSize:background.preferredSize]; [background setNeedsLayout:YES]; [background layoutSubtreeIfNeeded];
     return background;
 }

@@ -3,6 +3,7 @@ unit nc_pinyin_transformer_host;
 {$codepage utf8}
 {$mode delphiunicode}
 {$H+}
+{$MINFPCONSTPREC 64}
 
 interface
 
@@ -14,7 +15,7 @@ uses
     Generics.Collections,
     Dynlibs,
     nc_local_repair_host, nc_dictionary_intf, nc_local_repair_guard,
-    nc_engine_intf;
+    nc_short_context_ranker, nc_short_context_host, nc_engine_intf;
 
 const
     c_nc_pinyin_transformer_result_timeout_ms = 30;
@@ -58,7 +59,8 @@ type
     end;
 
     TncPinyinTransformerHostReranker = class(TInterfacedObject,
-        IncLongNeuralReranker, IncLongLocalRepair, IncLongLocalRepairPolicy, IncLongJointRepair)
+        IncLongNeuralReranker, IncLongLocalRepair, IncLongLocalRepairPolicy, IncLongJointRepair,
+        IncLongStyleRepair, IncShortContextReranker)
     private type
         TncPtCreate = function(const model_path: PAnsiChar;
             const intra_threads: Integer; const error_text: PAnsiChar;
@@ -85,6 +87,7 @@ type
     private
         m_base_directory: string;
         m_local_repair: TncLocalRepairHost;
+        m_short_context: IncShortContextReranker;
         m_state_lock: TCriticalSection;
         m_run_lock: TCriticalSection;
         m_loader: TncPinyinTransformerLoadThread;
@@ -186,6 +189,11 @@ type
             out repaired_text, aligned_pinyin: string;
             out minimum_word_ratio: Double): Boolean;
         function joint_ready: Boolean;
+        function style_ready: Boolean;
+        function try_style_repair(const dictionary: TncDictionaryProvider;
+            const query, first, second, first_path, second_path: string;
+            const document_key, preceding_text: string;
+            out selected: TncValidatedRepairPath): Boolean;
         function try_finalize(const dictionary: TncDictionaryProvider;
             const query_text, draft, path, current, second, aligned_pinyin: string;
             const document_key, preceding_text: string;
@@ -194,6 +202,8 @@ type
         function last_error: string;
         procedure set_audit_enabled(const value: Boolean);
         function get_last_audit(out audit: TncPinyinTransformerAudit): Boolean;
+        function short_context_ready: Boolean;
+        function try_switch_short_context(const request: TncShortContextRequest): Boolean;
     end;
 
 implementation
@@ -280,6 +290,13 @@ const
     c_conditional_fusion_numeric_indices: array[0..21] of Integer = (
         0, 2, 5, 6, 7, 24, 25, 26, 29, 30, 40,
         41, 45, 47, 51, 67, 71, 81, 84, 85, 86, 87);
+
+// Delphi Win64 promotes Single arithmetic to Double. FPC otherwise rounds
+// score differences before they reach the exported Double fusion features.
+function promoted_single(const value: Single): Double; inline;
+begin
+    Result := value;
+end;
 
 function signed_log_value(const value: Double): Double;
 begin
@@ -517,11 +534,11 @@ var
 begin
     FillChar(features, SizeOf(features), 0);
     cursor := 0;
-    features[cursor] := raw_score / Max(1, syllable_count);
+    features[cursor] := promoted_single(raw_score) / Max(1, syllable_count);
     Inc(cursor);
-    features[cursor] := raw_score - baseline_raw_score;
+    features[cursor] := promoted_single(raw_score) - baseline_raw_score;
     Inc(cursor);
-    features[cursor] := raw_score - best_raw_score;
+    features[cursor] := promoted_single(raw_score) - best_raw_score;
     Inc(cursor);
     features[cursor] := 1.0 / (candidate_index + 1);
     Inc(cursor);
@@ -726,7 +743,7 @@ begin
         High(c_conditional_fusion_numeric_indices) do
     begin
         numeric_index := c_conditional_fusion_numeric_indices[index];
-        features[cursor] := challenger_row[numeric_index] -
+        features[cursor] := promoted_single(challenger_row[numeric_index]) -
             baseline_row[numeric_index];
         Inc(cursor);
     end;
@@ -849,6 +866,18 @@ begin
         if not m_local_repair.wait_until_ready(60000) then
             raise Exception.Create('Local repair initialization timed out');
     end;
+    m_short_context := TncShortContextHost.Create(m_base_directory, background_load);
+end;
+
+function TncPinyinTransformerHostReranker.short_context_ready: Boolean;
+begin
+    Result := (m_short_context <> nil) and m_short_context.short_context_ready;
+end;
+
+function TncPinyinTransformerHostReranker.try_switch_short_context(
+    const request: TncShortContextRequest): Boolean;
+begin
+    Result := (m_short_context <> nil) and m_short_context.try_switch_short_context(request);
 end;
 
 destructor TncPinyinTransformerHostReranker.Destroy;
@@ -2155,6 +2184,21 @@ begin
     Result := (m_local_repair <> nil) and m_local_repair.try_finalize(dictionary,
         query_text, draft, path, current, second, aligned_pinyin,
         document_key, preceding_text, selected);
+end;
+
+function TncPinyinTransformerHostReranker.style_ready: Boolean;
+begin
+    Result := (m_local_repair <> nil) and m_local_repair.style_ready;
+end;
+
+function TncPinyinTransformerHostReranker.try_style_repair(
+    const dictionary: TncDictionaryProvider;
+    const query, first, second, first_path, second_path: string;
+    const document_key, preceding_text: string;
+    out selected: TncValidatedRepairPath): Boolean;
+begin
+    Result := (m_local_repair <> nil) and m_local_repair.try_style_repair(dictionary,
+        query, first, second, first_path, second_path, document_key, preceding_text, selected);
 end;
 
 end.

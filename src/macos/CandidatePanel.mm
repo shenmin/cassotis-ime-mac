@@ -27,6 +27,9 @@ NSRect CassotisPanelFrameAtCaret(NSRect caret, NSSize size, NSRect visible) {
 
 @implementation CassotisCandidatePanel {
     NSUInteger _revision;
+    __weak id _lastClient;
+    std::string _lastQuery;
+    NSRect _lastCaret, _lastVisible;
 }
 - (instancetype)init {
     self=[super initWithContentRect:NSMakeRect(0,0,300,100)
@@ -76,7 +79,12 @@ NSRect CassotisPanelFrameAtCaret(NSRect caret, NSSize size, NSRect visible) {
         self,@selector(clicked:),@selector(deleteClicked:),_revision,self.completionKey);
     NSSize fitting=self.contentView.fittingSize;
     fitting.width=MAX(180,fitting.width);
-    [self setFrame:CassotisPanelFrameAtCaret(caret,fitting,visible) display:YES];
+    NSRect anchorCaret=caret;
+    if(r.candidatePages.size()>1 && self.visible && _lastClient==client && _lastQuery==r.query &&
+        fabs(NSMinY(caret)-NSMinY(_lastCaret))<0.5 && NSEqualRects(visible,_lastVisible))
+        anchorCaret.origin.x=NSMinX(self.frame);
+    [self setFrame:CassotisPanelFrameAtCaret(anchorCaret,fitting,visible) display:YES];
+    _lastClient=client; _lastQuery=r.query; _lastCaret=caret; _lastVisible=visible;
     [self orderFrontRegardless];
 }
 @end

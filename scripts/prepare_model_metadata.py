@@ -9,8 +9,12 @@ def runtime_metadata(name, value):
     """Project metadata onto reviewed fields; values read by the hosts stay exact."""
     def select(obj, keys):
         return {key: obj[key] for key in keys.split()}
+    if name == 'short_context':
+        return select(value, 'format enabled architecture counterfactual parameters '
+                      'context_characters candidate_count max_inference_ms cpu_threads '
+                      'base_model base_license files')
     if name == 'local_repair':
-        result = select(value, 'format enabled joint_bilateral joint_score_agreement model minimum_word_ratio no_context_refinement_passes '
+        result = select(value, 'format enabled joint_bilateral joint_score_agreement style_phrase_recovery model minimum_word_ratio no_context_refinement_passes '
                         'source_model source_revision license teacher_url checkpoint_sha256 '
                         'max_characters context_characters dictionary_constraints_sha256 files')
         for key in ('no_context', 'document_context'):
@@ -32,6 +36,7 @@ def runtime_metadata(name, value):
 
 
 MODEL_MANIFESTS = (('local_repair', 'runtime_manifest.json'),
+                   ('short_context', 'runtime_manifest.json'),
                    ('local_completion', 'model_manifest.json'))
 
 

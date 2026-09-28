@@ -24,6 +24,6 @@ cp "$ort/libonnxruntime.1.20.1.dylib" "$bin/"
 for library in libcassotis_ort.dylib libonnxruntime.1.20.1.dylib; do
     codesign --force --sign - "$bin/$library"
 done
-for name in pinyin_transformer local_completion local_repair; do
+for name in pinyin_transformer local_completion local_repair short_context; do
     ln -sfn "$root/data/models/$name" "$bin/$name"
 done

@@ -478,21 +478,30 @@ uint16_t CassotisShortcutKey(const cassotis::Key &k) {
     try { if(_engine->connected()) _engine->reset(); } catch(...) { _engine->disconnect(); }
     [self apply:cassotis::Result{}];
 }
-- (void)selectCandidate:(NSInteger)index {
-    if(!_active || _result.preedit.empty() || ![self ensureReady]) return;
+- (void)candidateAction:(NSInteger)tag remove:(BOOL)remove {
+    if(!_active || tag<0 || _result.preedit.empty() || !_engine->connected()) return;
+    int32_t page=_result.page, index=int32_t(tag);
+    if(tag>=16) { page=int32_t(tag/16)-1; index=int32_t(tag%16); }
+    if(index<0 || index>=9) return;
+    const cassotis::Candidate *candidate=nullptr;
+    if(page==_result.page && index<int32_t(_result.candidates.size())) candidate=&_result.candidates[index];
+    else for(const auto &row:_result.candidatePages)
+        if(row.page==page && index<int32_t(row.candidates.size())) candidate=&row.candidates[index];
+    if(!candidate || (remove && !candidate->deletable)) return;
     try {
-        cassotis::Key k;
-        if(index==-1) { auto state=_engine->state(); if(state.completionKey==0) k.special=6; else k.text="`"; }
-        else { if(index<0 || index>=NSInteger(_result.candidates.size()) || index>8) return; k.text=std::to_string(index+1); }
+        [self apply:_engine->candidateAction(_result.candidateRevision,page,index,remove,_result.query,*candidate)];
+    } catch(...) { [self recover]; }
+}
+- (void)selectCandidate:(NSInteger)index {
+    if(index!=-1) { [self candidateAction:index remove:NO]; return; }
+    if(!_active || _result.preedit.empty() || !_engine->connected()) return;
+    try {
+        cassotis::Key k; auto state=_engine->state();
+        if(state.completionKey==0) k.special=6; else k.text="`";
         [self apply:_engine->key(k)];
     } catch(...) { [self recover]; }
 }
-- (void)deleteCandidate:(NSInteger)index {
-    if(!_active || index<0 || index>=NSInteger(_result.candidates.size()) || !_result.candidates[index].deletable) return;
-    try {
-        [self apply:_engine->removeCandidate(int32_t(index),_result.query,_result.candidates[index])];
-    } catch(...) { [self recover]; }
-}
+- (void)deleteCandidate:(NSInteger)index { [self candidateAction:index remove:YES]; }
 - (void)toggle:(NSInteger)action {
     [activeSession commit];
     try {

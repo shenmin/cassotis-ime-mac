@@ -8,7 +8,7 @@ interface
 
 uses
     nc_runtime_paths, nc_types,
-    SysUtils, nc_platform_compat, Classes, SyncObjs, Generics.Collections, Dynlibs, nc_dictionary_intf, nc_local_repair_guard, nc_joint_repair_host;
+    SysUtils, nc_platform_compat, Classes, SyncObjs, Generics.Collections, Dynlibs, nc_dictionary_intf, nc_local_repair_guard, nc_joint_repair_host, nc_style_phrase_host;
 
 type
     TncLocalRepairHost = class;
@@ -64,6 +64,7 @@ type
         m_profile_frequency, m_profile_ticks: Int64;
         m_profile_calls, m_profile_runs: Integer;
         m_joint: TncJointRepairChooser;
+        m_style: TncStylePhraseHost;
         m_joint_calls, m_joint_switches: Integer;
         m_joint_ticks: Int64;
         m_joint_trace: TFileStream;
@@ -85,6 +86,11 @@ type
         function allows_no_context_refinement: Boolean;
         function last_error: string;
         function joint_ready: Boolean;
+        function style_ready: Boolean;
+        function try_style_repair(const dictionary: TncDictionaryProvider;
+            const query, first, second, first_path, second_path: string;
+            const document_key, preceding_text: string;
+            out selected: TncValidatedRepairPath): Boolean;
         function try_finalize(const dictionary: TncDictionaryProvider;
             const query_text, draft, path, current, second, aligned_pinyin: string;
             const document_key, preceding_text: string;
@@ -170,6 +176,7 @@ begin
         log_message(UTF8Decode(Format(
             '[INFO] local-repair profile calls=%d runs=%d native_total_ms=%.3f',
             [m_profile_calls, m_profile_runs, m_profile_ticks * 1000.0 / m_profile_frequency])));
+    m_style.Free;
     m_joint.Free;
     m_joint_trace.Free;
     // The worker has joined; this also handles partially constructed objects.
@@ -191,7 +198,7 @@ var
     array_value: TJSONArray;
     char_id, py_id, index, item_index, refinement_passes: Integer;
     create_model: TCreateModel;
-    joint_requested, score_agreement: Boolean;
+    joint_requested, score_agreement, style_requested: Boolean;
     query_file: string;
     attach_joint: TAttachJoint;
     joint_query: TncJointRepairChooser.TQuery;
@@ -235,6 +242,8 @@ begin
         joint_requested := manifest.Get('joint_bilateral', False) and
             (GetEnvironmentVariable('CASSOTIS_DISABLE_JOINT_REPAIR') <> '1');
         score_agreement := manifest.Get('joint_score_agreement', False);
+        style_requested := manifest.Get('style_phrase_recovery', False) and
+            (GetEnvironmentVariable('CASSOTIS_DISABLE_STYLE_PHRASE') <> '1');
     finally
         manifest.Free;
     end;
@@ -352,6 +361,69 @@ begin
                     log_message('[WARN] optional joint repair trace unavailable: ' + problem.Message );
             end;
     end;
+    if style_requested and joint_requested then
+        try
+            m_style := TncStylePhraseHost.Create(path, m_module, m_handle);
+            log_message(
+                '[INFO] bounded style phrase recovery ready in host' + sLineBreak);
+        except
+            on problem: Exception do
+                log_message(
+                    '[WARN] style recovery unavailable; keeping ordinary ranking: ' +
+                    problem.Message + sLineBreak);
+        end;
+end;
+
+function TncLocalRepairHost.style_ready: Boolean;
+begin
+    m_state.Acquire;
+    try Result := m_loaded and (m_style <> nil);
+    finally m_state.Release; end;
+end;
+
+function TncLocalRepairHost.try_style_repair(const dictionary: TncDictionaryProvider;
+    const query, first, second, first_path, second_path: string;
+    const document_key, preceding_text: string;
+    out selected: TncValidatedRepairPath): Boolean;
+var
+    generation: UInt64;
+    signature: string;
+    budget: Cardinal;
+begin
+    Result := False;
+    selected := Default(TncValidatedRepairPath);
+    if (preceding_text <> '') or (Length(first) < 6) or (Length(first) > 32) then Exit;
+    signature := document_key + #0;
+    m_state.Acquire;
+    try
+        if not m_loaded or (m_style = nil) or (m_signature <> signature) or
+            (m_context_text <> '') or (m_ready_generation <> m_generation) then Exit;
+        generation := m_generation;
+    finally m_state.Release; end;
+    if not m_run_lock.TryEnter then Exit;
+    try
+        m_state.Acquire;
+        try if (generation <> m_generation) or (m_signature <> signature) then Exit;
+        finally m_state.Release; end;
+        // Fixed proposal/encoding budgets are primary. Zero disables only the
+        // emergency wall-clock fuse for deterministic acceptance runs.
+        budget := 250;
+        if m_timeout = 0 then budget := 0;
+        try
+            Result := m_style.run(dictionary, query, first, second, first_path,
+                second_path, budget, selected);
+        except
+            Result := False;
+        end;
+        m_state.Acquire;
+        try
+            if (generation <> m_generation) or (m_signature <> signature) then
+            begin
+                Result := False;
+                selected := Default(TncValidatedRepairPath);
+            end;
+        finally m_state.Release; end;
+    finally m_run_lock.Release; end;
 end;
 
 procedure TncLocalRepairHost.execute_worker;

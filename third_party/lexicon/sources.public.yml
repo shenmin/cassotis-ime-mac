@@ -1,5 +1,5 @@
 version: 1
-generated_at: "2026-08-14T07:16:18+00:00"
+generated_at: "2026-09-23T00:00:00+00:00"
 profile: external_broad
 sources:
   - id: cc-cedict
@@ -16,12 +16,32 @@ sources:
     name: THUOCL (Tsinghua Open Chinese Lexicon)
     download_url: https://github.com/thunlp/THUOCL/archive/refs/heads/master.zip
     homepage: https://github.com/thunlp/THUOCL
-    license: THUOCL custom open terms
-    risk_level: medium
-    redistribution_class: attribution_required
+    license: MIT
+    risk_level: low
+    redistribution_class: permissive
     attribution_required: true
     raw_committed: false
     notes: 'Domain/common words with DF statistics, used for broad coverage.'
+  - id: thuocl-reviewed-animal-terms
+    name: Reviewed THUOCL animal and husbandry terms
+    download_url: repo://manifests/vertical/thuocl_reviewed_animals.tsv
+    homepage: https://github.com/thunlp/THUOCL
+    license: MIT
+    risk_level: low
+    redistribution_class: permissive
+    attribution_required: true
+    raw_committed: true
+    notes: 'Add-only, explicit-reading specialist coverage; not a general-frequency signal.'
+  - id: thuocl-specialist-admissions
+    name: THUOCL low-priority professional vocabulary admissions
+    download_url: repo://manifests/vertical/thuocl_specialist_admissions.tsv
+    homepage: https://github.com/thunlp/THUOCL
+    license: MIT
+    risk_level: low
+    redistribution_class: permissive
+    attribution_required: true
+    raw_committed: true
+    notes: 'Pinned revision a30ce79d895d01ab5132a5c74c29703ff7efb4cc; catalogue coverage and prediction eligibility are independent.'
   - id: opencc-stphrases
     name: OpenCC STPhrases
     download_url: https://raw.githubusercontent.com/BYVoid/OpenCC/master/data/dictionary/STPhrases.txt
@@ -306,9 +326,9 @@ sources:
     name: THUOCL chengyu subset
     download_url: https://github.com/thunlp/THUOCL/archive/refs/heads/master.zip#THUOCL_chengyu.txt
     homepage: https://github.com/thunlp/THUOCL
-    license: THUOCL custom open terms
-    risk_level: medium
-    redistribution_class: attribution_required
+    license: MIT
+    risk_level: low
+    redistribution_class: permissive
     attribution_required: true
     raw_committed: false
     notes: 'THUOCL chengyu subset used as a conservative idiom/allusion candidate source.'
@@ -316,9 +336,9 @@ sources:
     name: THUOCL IT subset
     download_url: https://github.com/thunlp/THUOCL/archive/refs/heads/master.zip#THUOCL_IT.txt
     homepage: https://github.com/thunlp/THUOCL
-    license: THUOCL custom open terms
-    risk_level: medium
-    redistribution_class: attribution_required
+    license: MIT
+    risk_level: low
+    redistribution_class: permissive
     attribution_required: true
     raw_committed: false
     notes: 'THUOCL IT subset used as a computing/domain terminology candidate layer.'
@@ -496,9 +516,9 @@ sources:
     name: THUOCL medical subset
     download_url: https://github.com/thunlp/THUOCL/archive/refs/heads/master.zip#THUOCL_medical.txt
     homepage: https://github.com/thunlp/THUOCL
-    license: THUOCL custom open terms
-    risk_level: medium
-    redistribution_class: attribution_required
+    license: MIT
+    risk_level: low
+    redistribution_class: permissive
     attribution_required: true
     raw_committed: false
     notes: 'Medical-domain candidate layer from THUOCL, kept separate from daily/chat phrase ranking and weighted more conservatively than the MeSH-validated medical entities.'

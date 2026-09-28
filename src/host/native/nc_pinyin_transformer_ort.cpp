@@ -12,7 +12,11 @@
 #include <fstream>
 #include <limits>
 #include <memory>
+#include <map>
 #include <mutex>
+#include <set>
+#include <chrono>
+#include <condition_variable>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -58,6 +62,8 @@ int EffectiveThreadCount(int requested_threads) {
     return std::min(requested, static_cast<int>(available));
 }
 
+void UseReleasableInitializers(Ort::SessionOptions& options);
+
 void ConfigureSessionOptions(Ort::SessionOptions& options, int intra_threads) {
     options.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
     options.SetIntraOpNumThreads(EffectiveThreadCount(intra_threads));
@@ -65,6 +71,7 @@ void ConfigureSessionOptions(Ort::SessionOptions& options, int intra_threads) {
     options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
     // Inference is sparse and shares a process with dictionary/search caches.
     // Avoid retaining a separate peak-sized allocation arena for each model.
+    UseReleasableInitializers(options);
     options.DisableMemPattern();
     options.DisableCpuMemArena();
     // Avoid saturating U8S8 intermediates on x86 CPUs without VNNI. ORT
@@ -186,6 +193,14 @@ Ort::Env& Environment() {
     return env;
 }
 
+// The default initializer arena is one contiguous block per session. Kernels
+// pre-pack most weights, but that block cannot release the originals, so each
+// model would stay resident twice. Individually allocated initializers are
+// freed once packed; inference still uses the same packed weights.
+void UseReleasableInitializers(Ort::SessionOptions& options) {
+    options.AddConfigEntry("session.use_device_allocator_for_initializers", "1");
+}
+
 void SetError(char* destination, int capacity, std::string_view message) {
     if (destination == nullptr || capacity <= 0) {
         return;
@@ -205,6 +220,8 @@ std::string ErrorText(const char* message) {
 }
 
 }  // namespace
+
+#include "nc_short_context_runtime.h"
 
 extern "C" CASSOTIS_EXPORT void* nc_pt_create(
     const char* model_path,

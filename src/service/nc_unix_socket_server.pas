@@ -488,7 +488,7 @@ begin
                 end;
             imt_destroy_context, imt_reset_context, imt_set_active,
             imt_set_surrounding, imt_process_key, imt_poll_result,
-            imt_remove_candidate:
+            imt_remove_candidate, imt_candidate_action:
                 begin
                     if not connection.ResolveContext(external_context_id,
                         internal_context_id) then

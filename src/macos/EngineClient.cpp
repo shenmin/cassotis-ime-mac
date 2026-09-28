@@ -51,17 +51,24 @@ Bytes encodeKey(const Key &k) {
     Writer w; w.schema(); w.u16(k.special); w.u16(0); w.u32(k.modifiers); w.u32(k.scan);
     w.u32((k.release?1:0)|(k.repeat?2:0)); w.u64(k.timestamp); w.string(k.text); return w.data;
 }
+static Candidate readCandidate(Reader &r) {
+    Candidate c; c.source=r.u8(); c.kind=r.u8(); auto weight=r.u8(), deletable=r.u8();
+    require(c.source<=1 && c.kind<=2 && weight<=1 && deletable<=1,"Invalid candidate flags"); c.deletable=deletable;
+    for(int j=0;j<3;++j) r.u32(); require(!(r.u32()&~2047u),"Invalid fuzzy rules");
+    c.text=r.string(); c.comment=r.string(); return c;
+}
+static bool sameCandidate(const Candidate &a,const Candidate &b) {
+    return a.text==b.text && a.comment==b.comment && a.source==b.source && a.kind==b.kind && a.deletable==b.deletable;
+}
 Result decodeResult(const Bytes &data) {
-    Reader r(data); auto version=r.schema(); require(version>=1 && version<=3,"Unsupported result schema"); Result v;
+    Reader r(data); auto version=r.schema(); require(version>=1 && version<=4,"Unsupported result schema"); Result v;
     auto handled=r.u8(); require(handled<=1 && r.u16()==0,"Invalid result flags"); v.handled=handled;
     auto flags=r.u8(); require((flags&~1)==0,"Invalid result flags"); v.pending=flags&1;
     v.selected=int32_t(r.u32()); v.page=int32_t(r.u32()); v.pages=int32_t(r.u32()); auto error=r.u32();
     v.commit=r.string(); v.preedit=r.string(); v.query=r.string(); v.completion=r.string(); auto message=r.string();
     auto count=r.u32(); require(count<=256,"Too many candidates");
     for(uint32_t i=0;i<count;++i) {
-        Candidate c; c.source=r.u8(); c.kind=r.u8(); auto weight=r.u8(), deletable=r.u8();
-        require(c.source<=1 && c.kind<=1 && weight<=1 && deletable<=1,"Invalid candidate flags"); c.deletable=deletable;
-        for(int j=0;j<4;++j) r.u32(); c.text=r.string(); c.comment=r.string(); v.candidates.push_back(c);
+        v.candidates.push_back(readCandidate(r));
     }
     if(version>=2) {
         auto count=r.u32(); require(count<=1024,"Too many preedit warnings");
@@ -78,32 +85,54 @@ Result decodeResult(const Bytes &data) {
     }
     if(version>=3) {
         auto source=r.u8();
-        require(source>0 && source<=uint8_t(CompletionSource::ExactTailFallback) && !v.completion.empty() &&
+        require((source>0 || version>=4) && source<=uint8_t(CompletionSource::ExactTailFallback) &&
+            ((source==0)==v.completion.empty()) &&
             r.u8()==0 && r.u16()==0,"Invalid completion source");
         v.completionSource=CompletionSource(source);
     } else if(!v.completion.empty()) v.completionSource=CompletionSource::BaseExact;
+    if(version>=4) {
+        v.candidateRevision=r.u64(); auto rows=r.u32();
+        require(v.candidateRevision && rows<=3,"Invalid candidate viewport");
+        bool activeFound=count==0 && rows==0;
+        int32_t previous=-1;
+        for(uint32_t row=0;row<rows;++row) {
+            CandidatePage page; page.page=int32_t(r.u32()); auto n=r.u32();
+            require(n>0 && n<=9 && page.page>=0 && page.page<v.pages &&
+                (row==0 || page.page==previous+1),"Invalid candidate row");
+            previous=page.page;
+            for(uint32_t i=0;i<n;++i) page.candidates.push_back(readCandidate(r));
+            if(page.page==v.page) {
+                activeFound=true;
+                require(page.candidates.size()==v.candidates.size() &&
+                    std::equal(page.candidates.begin(),page.candidates.end(),v.candidates.begin(),sameCandidate),
+                    "Inconsistent active candidate row");
+            }
+            v.candidatePages.push_back(std::move(page));
+        }
+        require(activeFound,"Missing active candidate row");
+    }
     r.end(); require(v.selected>=-1 && v.selected<int32_t(count),"Invalid candidate selection");
     require(v.page>=0 && v.pages>=0 && (v.pages==0 || v.page<v.pages),"Invalid candidate page");
     if(error) throw std::runtime_error("Engine error: "+message);
     return v;
 }
 Bytes encodeState(const State &s) {
-    Writer w; w.schema(5); w.u8(s.mode); w.u8(s.dictionary); w.u8(s.scheme); w.u8(s.flags);
+    Writer w; w.schema(6); w.u8(s.mode); w.u8(s.dictionary); w.u8(s.scheme); w.u8(s.flags);
     w.u32(s.fuzzy); w.u8(s.pageKeys); w.u8(s.completionKey); w.u8(s.pageSize); w.u8(0);
     for(auto &k:s.shortcuts) { w.u16(k.key); w.u8(k.modifiers); w.u8(0); }
     uint8_t disabled=0; for(int i=0;i<5;++i) if(s.shortcuts[i].disabled) disabled|=1<<i;
     w.u8(disabled); w.u8(0); w.u16(0); return w.data;
 }
 State decodeState(const Bytes &data) {
-    Reader r(data); auto schema=r.schema(); require(schema==4 || schema==5,"Unsupported state schema"); State s;
+    Reader r(data); auto schema=r.schema(); require(schema>=4 && schema<=6,"Unsupported state schema"); State s;
     s.mode=r.u8(); s.dictionary=r.u8(); s.scheme=r.u8(); s.flags=r.u8(); s.fuzzy=r.u32();
     s.pageKeys=r.u8(); s.completionKey=r.u8(); s.pageSize=r.u8(); require(r.u8()==0,"Invalid state flags");
     for(auto &k:s.shortcuts) { k.key=r.u16(); k.modifiers=r.u8(); require(r.u8()==0 && !(k.modifiers&~7),"Invalid shortcut"); }
-    if(schema==5) {
+    if(schema>=5) {
         auto mask=r.u8(); require(!(mask&~31) && r.u8()==0 && r.u16()==0,"Invalid shortcut mask");
         for(int i=0;i<5;++i) s.shortcuts[i].disabled=mask&(1<<i);
     }
-    r.end(); require(s.mode<=1 && s.dictionary<=1 && s.scheme<=6 && !(s.flags&~15) &&
+    r.end(); require(s.mode<=1 && s.dictionary<=1 && s.scheme<=6 && !(s.flags&~(schema>=6?31:15)) &&
         s.pageKeys<=3 && s.completionKey<=1 && s.pageSize>=3 && s.pageSize<=9,"Invalid state values");
     return s;
 }
@@ -150,7 +179,7 @@ Bytes EngineClient::transact(uint16_t type,const Bytes &payload,int timeoutMs) {
         size_t n=r.u32(); require(n<=maxPayload,"IPC response too large"); Bytes reply(n);
         transfer(fd_,reply.data(),reply.size(),false,deadline);
         if(flags&2) { Reader e(reply); require(e.schema()==1,"Invalid engine error"); e.u32(); throw std::runtime_error(e.string()); }
-        require(kind==((type==10 || type==17 || type==18)?11:type),"Unexpected IPC response");
+        require(kind==((type==10 || type==17 || type==18 || type==19)?11:type),"Unexpected IPC response");
         return reply;
     } catch(...) { disconnect(); throw; }
 }
@@ -169,6 +198,13 @@ State EngineClient::state() {
 Result EngineClient::removeCandidate(int32_t index,const std::string &query,const Candidate &expected) {
     Writer w; w.schema(); w.u32(uint32_t(index)); w.string(query); w.string(expected.text); w.string(expected.comment);
     try { return decodeResult(transact(18,w.data)); } catch(...) { disconnect();throw; }
+}
+Result EngineClient::candidateAction(uint64_t revision,int32_t page,int32_t index,bool remove,
+    const std::string &query,const Candidate &expected) {
+    require(revision && page>=0 && index>=0 && index<9,"Invalid candidate action");
+    Writer w; w.schema(); w.u64(revision); w.u32(uint32_t(page)); w.u32(uint32_t(index)); w.u8(remove);
+    w.string(query); w.string(expected.text); w.string(expected.comment);
+    try { return decodeResult(transact(19,w.data)); } catch(...) { disconnect();throw; }
 }
 void EngineClient::setState(const State &s) { transact(13,encodeState(s)); }
 void EngineClient::clearLearning() { transact(16,{}); }

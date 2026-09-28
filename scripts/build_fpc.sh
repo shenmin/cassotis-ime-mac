@@ -8,8 +8,15 @@ bin="$root/build/$arch/bin"
 units="$root/build/$arch/units"
 logs="$root/build/$arch/logs"
 mkdir -p "$bin" "$units" "$logs"
-args=("-P$cpu" -Mdelphiunicode -FcUTF8 -vm2091 -vm4110 -O2 -g -gl -Si -vewnhibq "-FE$bin" "-FU$units")
+# Preserve the Double arithmetic of the upstream Delphi ranking features.
+args=("-P$cpu" -Mdelphiunicode -FcUTF8 -CF64 -vm2091 -vm4110 -O2 -g -gl -Si -vewnhibq "-FE$bin" "-FU$units")
 for dir in common engine dictionary ipc service host; do args+=("-Fu$root/src/$dir"); done
+options_stamp="$(printf '%s\n' "$fpc" "${args[@]}" | shasum -a 256 | cut -d ' ' -f 1)"
+if [[ ! -f "$units/.compiler-options" ]] || [[ "$(cat "$units/.compiler-options")" != "$options_stamp" ]]; then
+    rm -rf "$units"
+    mkdir -p "$units"
+    printf '%s\n' "$options_stamp" > "$units/.compiler-options"
+fi
 compile() {
     local source="$1" name="$2"
     printf '[FPC %s] %s\n' "$arch" "$name"

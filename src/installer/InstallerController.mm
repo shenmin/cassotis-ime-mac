@@ -7,7 +7,7 @@
     NSTextField *_heading, *_message, *_steps;
     NSButton *_primary, *_secondary, *_uninstall;
     NSProgressIndicator *_progress;
-    BOOL _working, _succeeded, _removing, _enabling, _inputSourceEnabled;
+    BOOL _working, _succeeded, _removing, _enabling, _inputSourceEnabled, _checkingEnablement;
     NSUInteger _enablementGeneration, _enabledSamples;
     NSTimeInterval _enablementDeadline;
     NSString *_output;
@@ -74,6 +74,25 @@
 - (BOOL)inputSourceEnabled { return _inputSourceEnabled; }
 - (void)windowWillClose:(NSNotification *)notification {
     (void)notification; _enabling=NO; ++_enablementGeneration;
+}
+- (void)windowDidBecomeKey:(NSNotification *)notification {
+    (void)notification;
+    if(!_succeeded || _removing || _working || _enabling || _inputSourceEnabled || _checkingEnablement) return;
+    // System Settings may have enabled the source after our initial wait ended.
+    // Returning here must verify it without reopening consent or reinstalling.
+    _checkingEnablement=YES;
+    NSUInteger generation=_enablementGeneration;
+    __weak CassotisInstallerController *weakSelf=self;
+    [self readInputSourceState:^(NSDictionary *state) {
+        CassotisInstallerController *owner=weakSelf;
+        if(!owner) return;
+        owner->_checkingEnablement=NO;
+        if(generation!=owner->_enablementGeneration || owner->_working || owner->_enabling ||
+           ![state[@"enabled"] isEqual:@YES]) return;
+        owner->_enabling=YES; owner->_enabledSamples=1; ++owner->_enablementGeneration;
+        owner->_enablementDeadline=NSProcessInfo.processInfo.systemUptime+[owner enablementWaitLimit];
+        [owner pollEnablement:owner->_enablementGeneration];
+    }];
 }
 - (BOOL)windowShouldClose:(NSWindow *)window {
     (void)window;
@@ -182,7 +201,7 @@
     _heading.stringValue=enabled?@"安装完成":@"已安装，尚未启用";
     _message.stringValue=enabled?@"言泉输入法已添加到系统输入菜单，可以直接选用。":@"应用已安装，macOS 尚未确认启用言泉输入法。";
     _steps.stringValue=enabled?@"从菜单栏的输入菜单选择“言泉输入法”，即可开始输入。\n\n输入 nihao，再按空格，可试打“你好”。\n\n原有设置和学习记录已保留。":
-        @"如有系统确认窗口，请允许使用言泉输入法。\n\n也可点击“重试启用”，再次请求系统启用。\n\n若仍未成功，打开键盘设置，在“文字输入 → 编辑 → + → 中文（简体）”中添加言泉输入法。";
+        @"如有系统确认窗口，请允许使用言泉输入法，也可点击“重试启用”。\n\n未出现确认时，打开键盘设置，在“文字输入 → 编辑 → + → 中文（简体）”中添加言泉输入法。\n\n添加后返回此窗口，将自动确认启用状态。";
     _primary.enabled=YES; _primary.title=enabled?@"完成":@"重试启用";
     _primary.action=enabled?@selector(quit:):@selector(retryEnablement:);
     _secondary.enabled=YES; _secondary.hidden=NO; _secondary.title=@"打开键盘设置";
@@ -211,8 +230,8 @@
     _enabling=YES; _inputSourceEnabled=NO; _enabledSamples=0; ++_enablementGeneration;
     _heading.stringValue=@"正在启用…";
     _message.stringValue=@"正在将言泉输入法添加到系统输入菜单。";
-    _steps.stringValue=@"如果 macOS 弹出确认，请允许使用言泉输入法。\n\n正在等待系统确认，完成后即可从菜单栏选用。\n\n也可以关闭此窗口，稍后在键盘设置中启用。";
-    _primary.enabled=YES; _primary.title=@"完成"; _primary.action=@selector(quit:);
+    _steps.stringValue=@"如果 macOS 弹出确认，请点击“允许”。\n\n未出现确认时，打开键盘设置，在“文字输入 → 编辑 → + → 中文（简体）”中添加言泉输入法。\n\n添加后返回此窗口，将自动确认启用状态。";
+    _primary.enabled=YES; _primary.title=@"稍后启用"; _primary.action=@selector(quit:);
     _secondary.enabled=YES; _secondary.hidden=NO; _secondary.title=@"打开键盘设置";
     _secondary.action=@selector(openSettings:); [_progress startAnimation:nil];
     _enablementDeadline=NSProcessInfo.processInfo.systemUptime+[self enablementWaitLimit];

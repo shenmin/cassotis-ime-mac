@@ -28,6 +28,8 @@ const
     c_default_candidate_color_scheme = 0;
     c_min_candidate_color_scheme = 0;
     c_max_candidate_color_scheme = 5;
+    // Catalogue coverage is selectable by exact input, not predictive evidence.
+    c_completion_layer_exact_only_specialist = 4;
 
 type
     TncStringHelper = type helper for UnicodeString
@@ -56,7 +58,7 @@ type
     TncFuzzyPinyinRules = set of TncFuzzyPinyinRule;
 
     TncCandidateSource = (cs_rule, cs_user);
-    TncCandidateDisplayKind = (cdk_default, cdk_lm_compound);
+    TncCandidateDisplayKind = (cdk_default, cdk_lm_compound, cdk_sentence_prefix);
     TncInputMode = (im_chinese, im_english);
     TncDictionaryVariant = (dv_simplified, dv_traditional);
     TncPinyinInputScheme = (
@@ -109,6 +111,7 @@ type
         full_width_mode: Boolean;
         punctuation_full_width: Boolean;
         candidate_page_size: Integer;
+        candidate_expand_on_paging: Boolean;
         candidate_page_key_scheme: TncCandidatePageKeyScheme;
         one_key_completion_key: TncOneKeyCompletionKey;
         debug_mode: Boolean;
@@ -131,6 +134,7 @@ type
         candidate_font_name: string;
         candidate_font_size: Integer;
         candidate_page_size: Integer;
+        candidate_expand_on_paging: Boolean;
         candidate_page_key_scheme: TncCandidatePageKeyScheme;
         one_key_completion_key: TncOneKeyCompletionKey;
         candidate_color_scheme: Integer;
@@ -152,6 +156,11 @@ type
         deletable: Boolean;
     end;
     TncCandidateList = array of TncCandidate;
+    TncCandidatePage = record
+        page_index: Integer;
+        candidates: TncCandidateList;
+    end;
+    TncCandidatePages = TArray<TncCandidatePage>;
 
     TncOneKeyCompletionSource = (
         okcs_none,
@@ -332,6 +341,8 @@ type
         selected_index: Integer;
         page_index: Integer;
         page_count: Integer;
+        candidate_pages: TncCandidatePages;
+        candidate_revision: QWord;
         completion_text: string;
         completion_source: TncOneKeyCompletionSource;
         error_code: Cardinal;
@@ -435,6 +446,8 @@ begin
     value.selected_index := -1;
     value.page_index := 0;
     value.page_count := 0;
+    value.candidate_pages := nil;
+    value.candidate_revision := 0;
     value.completion_text := '';
     value.completion_source := okcs_none;
     value.error_code := 0;
@@ -532,6 +545,8 @@ begin
         right_value.punctuation_full_width) and
         (left_value.candidate_page_size =
         right_value.candidate_page_size) and
+        (left_value.candidate_expand_on_paging =
+        right_value.candidate_expand_on_paging) and
         (left_value.candidate_page_key_scheme =
         right_value.candidate_page_key_scheme) and
         (left_value.one_key_completion_key =
