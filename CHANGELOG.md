@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0 (build 3)
+
+- Align the engine, dictionaries and deployed models with Windows / Cassotis Lexicon v1.31.0.
+- Replace RBT3 with a shared character language model for long sentences, contextual words, mixed Pinyin abbreviations and Tab continuations. Keep dictionary, pronunciation and learned-preference protections.
+- Improve whole-word recall for mixed abbreviations, including single-consonant `n` / `m` / `r` and `zh` / `ch` / `sh` boundaries.
+- Compare completion of the current word with following phrases and predicted next characters; base Tab decisions on the final visible candidate and preserve explicit syllable boundaries.
+- Rerank short Tab suggestions asynchronously after displaying the lexical choice. Reject results from replaced input generations or recreated contexts.
+- Reuse only the model stage of long-completion prefetch, then apply the shared-LM policy to the final request. Follow the upstream 80 ms production result budget.
+- Store the character model in verified source parts and reconstruct it atomically during builds; ship only the complete model in the application.
+
 ## 0.2.0 (build 2)
 
 - Align the shared engine, production models and dictionaries with Windows / Cassotis Lexicon v1.29.0.

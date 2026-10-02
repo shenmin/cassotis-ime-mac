@@ -10,15 +10,15 @@
 ./scripts/check_environment.sh
 ```
 
-词库是独立的 [Cassotis Lexicon](https://github.com/shenmin/cassotis-lexicon) 项目。下载或检出其 v1.29.0 版本后，用环境变量指定位置，无需放在固定目录或本仓库旁边：
+词库是独立的 [Cassotis Lexicon](https://github.com/shenmin/cassotis-lexicon) 项目。下载或检出其 v1.31.0 版本后，用环境变量指定位置，无需放在固定目录或本仓库旁边：
 
 ```sh
 export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
 ```
 
-该目录必须包含 `data/generated/` 下简繁两套共 24 个生成文本。构建时按 `data/lexicon-inputs.json` 验证输入 SHA-256，再导入 schema 24 数据库；基础词条分别为 249,342 / 252,554。词库生成过程和许可见词库项目自身的文档。
+该目录必须包含 `data/generated/` 下简繁两套共 24 个生成文本。构建时按 `data/lexicon-inputs.json` 验证输入 SHA-256，再导入 schema 24 数据库；基础词条分别为 249,362 / 252,574。词库生成过程和许可见词库项目自身的文档。
 
-十四个 ONNX 模型、词表和索引已随源码提供，`data/runtime-assets.sha256` 记录模型和数据库 schema 的校验值。首次构建会下载官方 ONNX Runtime 1.20.1 arm64 发行包，核对固定 SHA-256 后解压。已安装的输入法无需编译器、Python、联网推理或另外下载模型。
+十一个 ONNX 模型、词表和索引已随源码提供。共享字符模型以 `char_lm.onnx.000`、`.001`、`.002` 分片保存，构建时按顺序原子合并并验证 SHA-256；合并文件不提交到 Git，安装应用仅携带合并模型。`data/runtime-assets.sha256` 记录模型和数据库 schema 的校验值。首次构建会下载官方 ONNX Runtime 1.20.1 arm64 发行包，核对固定 SHA-256 后解压。已安装的输入法无需编译器、Python、联网推理或另外下载模型。
 
 ## 构建
 
@@ -62,7 +62,7 @@ export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
 
 DMG 图形安装器在文件安装成功后请求系统启用输入法，按需显示 macOS 的授权确认。确认启用后可直接从输入菜单选用；未成功时提供“重试启用”和键盘设置入口。命令行安装保留上述手动添加步骤。
 
-Developer ID 签名的 DMG 固定命名为 `cassotis-ime-macos-<版本号>-arm64-installer-signed.dmg`，例如 `cassotis-ime-macos-0.2.0-arm64-installer-signed.dmg`。后续版本只替换版本号；完成公证后也保持此名称。未指定签名身份的本机构建使用 `-installer-local.dmg` 后缀。
+Developer ID 签名的 DMG 固定命名为 `cassotis-ime-macos-<版本号>-arm64-installer-signed.dmg`，例如 `cassotis-ime-macos-1.0.0-arm64-installer-signed.dmg`。后续版本只替换版本号；完成公证后也保持此名称。未指定签名身份的本机构建使用 `-installer-local.dmg` 后缀。
 
 DMG 附带普通与 Retina 分辨率的背景，自动保存安装器与说明文件的位置。打包步骤需要已登录的 macOS 桌面，由系统 Finder 设置镜像外观；如系统首次询问终端是否可以控制 Finder，请允许。背景已随源码提供，不需要下载字体或访问官网。临时镜像在完成或失败后自动清理；若系统仍占用挂载卷，脚本会保留并显示其位置。
 

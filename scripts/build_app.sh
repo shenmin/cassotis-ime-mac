@@ -25,7 +25,7 @@ if [[ -d "$app/Contents/MacOS/Cassotis.dSYM" ]]; then
 fi
 cp "$bin/cassotis-engine" "$app/Contents/MacOS/"
 cp "$bin/libcassotis_ort.dylib" "$bin/libonnxruntime.1.20.1.dylib" "$app/Contents/Frameworks/"
-rsync -a --delete "$root/data/models/" "$app/Contents/Resources/models/"
+rsync -a --delete --delete-excluded --exclude='char_lm.onnx.[0-9][0-9][0-9]' --exclude='*.joining' "$root/data/models/" "$app/Contents/Resources/models/"
 python3 -B "$root/scripts/prepare_model_metadata.py" "$app/Contents/Resources/models"
 cp "$root/build/dictionaries/dict_sc.db" "$root/build/dictionaries/dict_tc.db" "$app/Contents/Resources/dictionaries/"
 cp "$root/resources/Info.plist" "$app/Contents/Info.plist"
@@ -37,7 +37,7 @@ rm -f "$app/Contents/Resources/CassotisInputSource.pdf" \
 cp "$root/resources/Cassotis.png" \
     "$root/resources/CassotisInputSourceRounded.tiff" "$app/Contents/Resources/"
 rsync -a "$root/third_party/lexicon/" "$app/Contents/Resources/licenses/lexicon/"
-rsync -a "$root/third_party/rbt3/" "$app/Contents/Resources/licenses/rbt3/"
+rm -rf "$app/Contents/Resources/licenses/rbt3"
 rsync -a "$root/third_party/macbert/" "$app/Contents/Resources/licenses/macbert/"
 rsync -a "$root/third_party/freepascal/" "$app/Contents/Resources/licenses/freepascal/"
 cp "$root/LICENSE" "$app/Contents/Resources/licenses/Cassotis.txt"

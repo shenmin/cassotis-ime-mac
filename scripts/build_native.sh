@@ -5,6 +5,8 @@ arch="${CASSOTIS_ARCH:-arm64}"
 ort="$root/third_party/onnxruntime/osx-$arch"
 bin="$root/build/$arch/bin"
 mkdir -p "$bin"
+python3 -B "$root/scripts/char_lm_model_parts.py" "$root/data/models/char_lm"
+rm -f "$bin/short_context"
 if [[ ! -f "$ort/libonnxruntime.1.20.1.dylib" ]]; then
     "$root/scripts/fetch_onnxruntime.sh"
 fi
@@ -24,6 +26,6 @@ cp "$ort/libonnxruntime.1.20.1.dylib" "$bin/"
 for library in libcassotis_ort.dylib libonnxruntime.1.20.1.dylib; do
     codesign --force --sign - "$bin/$library"
 done
-for name in pinyin_transformer local_completion local_repair short_context; do
+for name in pinyin_transformer local_completion local_repair char_lm; do
     ln -sfn "$root/data/models/$name" "$bin/$name"
 done

@@ -221,7 +221,7 @@ std::string ErrorText(const char* message) {
 
 }  // namespace
 
-#include "nc_short_context_runtime.h"
+#include "nc_char_lm_ort.inc"
 
 extern "C" CASSOTIS_EXPORT void* nc_pt_create(
     const char* model_path,

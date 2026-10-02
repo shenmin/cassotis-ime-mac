@@ -22,9 +22,9 @@
 
 [官網](https://www.yanquan.org/mac) · [下載安裝套件](https://github.com/shenmin/cassotis-ime-mac/releases) · [Windows](https://github.com/shenmin/cassotis-ime) · [Linux](https://github.com/shenmin/cassotis-ime-linux)
 
-原生 macOS 拼音輸入法，採用 **InputMethodKit / AppKit 前端與 Free Pascal 獨立引擎處理程序**。共用的正式引擎對齊 Windows 1.29.0，使用 Lexicon 1.29.0 詞庫與相同的本機模型。後續更新以 Windows 版為基準。
+原生 macOS 拼音輸入法，採用 **InputMethodKit / AppKit 前端與 Free Pascal 獨立引擎處理程序**。共用的正式引擎對齊 Windows 1.31.0，使用 Lexicon 1.31.0 詞庫與相同的本機模型。後續更新以 Windows 版為基準。
 
-版本 **0.2.0**（build **2**），適用於 Apple Silicon。部署目標為 macOS 14+，本輪實測環境為 M2 Pro / macOS 27.0；其他系統與架構的驗證範圍請見 [COMPATIBILITY.md](COMPATIBILITY.md)。
+版本 **1.0.0**（build **3**），支援 Apple Silicon 與 macOS 14 及以上。已驗證範圍與已知限制請見 [COMPATIBILITY.md](COMPATIBILITY.md)。
 
 ## 主要功能
 
@@ -38,7 +38,8 @@
 - 修復紫光 `sh` / `zh` / `ch` 的音節解析，保守判斷異常拼音與重複母音，在候選窗底部以紅色標出錯誤範圍；共用使用者詞依簡繁模式轉換顯示。
 - 改進五音節解碼、快取路徑的精確讀音檢查，以及重複選擇後的前綴排序。
 - 沒有預測提示時，Tab 可精確拼接已輸入拼音對應的詞；預測提示使用主題強調色，精確拼接使用一般文字色。
-- 上下文短詞模型保守調整首選並保護使用者學習；古文片段恢復、遞減長句前綴、模糊單字與複合詞邊界同步改進。
+- 共用字符級語言模型統一改善長句、上下文短詞、混合簡拼與 Tab 續寫，保留使用者學習和精確整詞保護。
+- Tab 同時比較當前詞補全、後續片語與下一個字建議；短詞先顯示詞庫結果，再於背景重排，保護明確的拼音音節邊界。
 - 新增專業詞精確輸入，多音字補充讀音不重複累計文字熱度；共用模型編碼與拼音快取減少計算。
 - 所有推論皆在本機透過 CPU ONNX Runtime 執行；安裝後不需要編譯器、Python 或網路服務。
 
@@ -48,11 +49,11 @@
 
 macOS 27 可能只開啟鍵盤設定而未顯示確認視窗。請在「文字輸入 → 編輯 → + → 中文（簡體）」中加入「言泉输入法」，再返回安裝程式；安裝程式會自動核實啟用狀態。
 
-圖形安裝程式會顯示進度，升級時保留設定與學習紀錄，失敗時提供記錄檔與重試選項。使用時不需要終端機、編譯器、Python 或另外下載模型。v0.2.0 下載檔案為 `cassotis-ime-macos-0.2.0-arm64-installer-signed.dmg`，已使用 Sunisoft Limited 的 Developer ID 簽章並完成 Apple 公證。檔名帶有 `-local` 的本機開發套件使用臨時簽章。安裝程式也提供解除安裝功能；請先從系統設定移除輸入來源。
+圖形安裝程式會顯示進度，升級時保留設定與學習紀錄，失敗時提供記錄檔與重試選項。使用時不需要終端機、編譯器、Python 或另外下載模型。v1.0.0 下載檔案為 `cassotis-ime-macos-1.0.0-arm64-installer-signed.dmg`，已使用 Sunisoft Limited 的 Developer ID 簽章並完成 Apple 公證。檔名帶有 `-local` 的本機開發套件使用臨時簽章。安裝程式也提供解除安裝功能；請先從系統設定移除輸入來源。
 
 ## 建置與安裝
 
-開發需要 **Free Pascal 3.2.2、Xcode 命令列工具與 Python 3.11+**，不依賴 Lazarus/LCL。準備 [Cassotis Lexicon v1.29.0](https://github.com/shenmin/cassotis-lexicon/tree/v1.29.0) 的產生資產，將 `CASSOTIS_LEXICON_ROOT` 指向自己的詞庫目錄（`/path/to/...` 為佔位路徑）：
+開發需要 **Free Pascal 3.2.2、Xcode 命令列工具與 Python 3.11+**，不依賴 Lazarus/LCL。準備 [Cassotis Lexicon v1.31.0](https://github.com/shenmin/cassotis-lexicon/tree/v1.31.0) 的產生資產，將 `CASSOTIS_LEXICON_ROOT` 指向自己的詞庫目錄（`/path/to/...` 為佔位路徑）：
 
 ```sh
 export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
@@ -70,7 +71,7 @@ export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
 
 發行驗證涵蓋核心輸入行為、模型執行、詞庫匯入、IPC、組字輸入、故障復原與設定儲存，並驗證原生文字控制項、WebKit、Chrome、Electron 和 Terminal 中的實際輸入。
 
-本輪通過 563 項核心回歸和 2,794 條簡繁詞庫案例。完整語料基準符合 Windows v1.29.0 的固定計數門檻：長句 Top1/Top2 為 **11,989 / 12,968**（−8 / −2），有上下文短詞為 **61,974 / 63,568**，短詞 Tab 命中 **9,420**（+0）。兩種長句補全預算均通過；50 ms 正式執行軌為 **425** 次預測命中、**6,778** 次預測顯示、**988** 淨節鍵。已輸入拼音的精確拼接另外計數。方法、計時與驗證範圍請見 [BENCHMARK.md](BENCHMARK.md)。測試程式、桌面自動化、基準工具、語料與逐例診斷不隨公開原始碼分發。
+本輪通過 600 項核心回歸和 2,840 條簡繁詞庫案例。完整語料基準符合本輪 Windows v1.31.0 驗收範圍（長句 Tab 的正向差異另行公開）：長句 Top1/Top2 為 **12,941 / 13,534**（+1 / 0），有上下文短詞為 **63,036 / 64,103**，短詞 Tab 命中 **10,331**（−5）。兩種長句補全預算均通過；80 ms 正式執行軌為 **3,539** 次預測命中（+26）、**15,812** 次預測顯示、**7,539** 淨節鍵（+61）。已輸入拼音的精確拼接另外計數。方法、計時與驗證範圍請見 [BENCHMARK.md](BENCHMARK.md)。測試程式、桌面自動化、基準工具、語料與逐例診斷不隨公開原始碼分發。
 
 ## 原始碼與授權
 

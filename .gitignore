@@ -20,3 +20,6 @@ __pycache__/
 *.pfx
 *.pem
 *.key
+
+/data/models/char_lm/char_lm.onnx
+/data/models/char_lm/*.joining

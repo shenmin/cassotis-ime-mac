@@ -15,6 +15,7 @@ type
     TncEngineContext = class
     private
         FId: QWord;
+        FInstanceId: QWord;
         FGeneration: QWord;
         FActive: Boolean;
         FSurroundingText: string;
@@ -33,6 +34,7 @@ type
         FModifierShortcutAction: TncShortcutAction;
         FModifierShortcutKeyCode: Word;
     public
+        LongCompletionPending, OneKeyRerankPending: Boolean;
         constructor Create(const context_id: QWord);
         function AdvanceGeneration(const generation_id: QWord): Boolean;
         procedure Reset;
@@ -56,6 +58,7 @@ type
         procedure SelectCandidate(const candidate_index: Integer);
         procedure SetSurrounding(const text: string; const cursor_offset: Integer);
         property Id: QWord read FId;
+        property InstanceId: QWord read FInstanceId;
         property Generation: QWord read FGeneration;
         property Active: Boolean read FActive write FActive;
         property SurroundingText: string read FSurroundingText;
@@ -92,9 +95,13 @@ type
 
 implementation
 
+var NextContextInstance: QWord = 0;
+
 constructor TncEngineContext.Create(const context_id: QWord);
 begin
     inherited Create;
+    Inc(NextContextInstance);
+    FInstanceId := NextContextInstance;
     FId := context_id;
     FGeneration := 0;
     Reset;
@@ -104,7 +111,14 @@ function TncEngineContext.AdvanceGeneration(const generation_id: QWord): Boolean
 begin
     Result := generation_id >= FGeneration;
     if Result then
+    begin
+        if generation_id <> FGeneration then
+        begin
+            LongCompletionPending := False;
+            OneKeyRerankPending := False;
+        end;
         FGeneration := generation_id;
+    end;
 end;
 
 procedure TncEngineContext.Reset;
@@ -118,6 +132,8 @@ end;
 
 procedure TncEngineContext.ClearComposition;
 begin
+    LongCompletionPending := False;
+    OneKeyRerankPending := False;
     FComposition := '';
     SetLength(FCandidates, 0);
     FSelectedIndex := -1;

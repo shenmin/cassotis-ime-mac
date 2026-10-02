@@ -15,7 +15,8 @@ uses
     nc_user_dictionary,
     nc_pinyin_transformer_host,
     nc_pinyin_input_diagnostics,
-    nc_local_completion_host;
+    nc_local_completion_host,
+    nc_char_lm, nc_char_lm_host, nc_one_key_rerank_host;
 
 const
     c_engine_error_unknown_context = 1;
@@ -35,6 +36,8 @@ type
         FConfig: TncEngineConfig;
         FLongNeuralReranker: IncLongNeuralReranker;
         FLocalCompletionHost: TncLocalCompletionHost;
+        FCharLm: IncCharLm;
+        FOneKeyRerankHost: TncOneKeyRerankHost;
         FLoadedContextId: QWord;
         FDictionaryError: string;
         procedure Initialize(const dictionary_path: string;
@@ -60,6 +63,7 @@ type
             var engine_result: TncEngineResult);
         function QueueLongNeuralCompletion(
             const context: TncEngineContext): Boolean;
+        function QueueOneKeyRerank(const context: TncEngineContext): Boolean;
         function RemoveCandidate(const context: TncEngineContext;
             const candidate_index: Integer): Boolean;
     public
@@ -148,6 +152,7 @@ var
     provider: TncSqliteDictionary;
     active_dictionary_path: string;
     runtime_directory: string;
+    char_lm_host: TncCharLmHost;
 begin
     FContexts := TncEngineContextRegistry.Create;
     FEngine := nil;
@@ -212,16 +217,22 @@ begin
     FLongNeuralReranker := TncPinyinTransformerHostReranker.Create(
         runtime_directory, True);
     FEngine.set_long_neural_reranker(FLongNeuralReranker);
-    FLocalCompletionHost := TncLocalCompletionHost.Create(
-        runtime_directory);
+    char_lm_host := TncCharLmHost.Create(runtime_directory, True);
+    FCharLm := char_lm_host;
+    FEngine.set_char_lm(FCharLm, True, True);
+    FLocalCompletionHost := TncLocalCompletionHost.Create(runtime_directory);
+    FLocalCompletionHost.SetCharLm(char_lm_host.background_view);
+    FOneKeyRerankHost := TncOneKeyRerankHost.Create(char_lm_host.background_view);
 end;
 
 destructor TncEngineService.Destroy;
 begin
+    FOneKeyRerankHost.Free;
     FLocalCompletionHost.Free;
     FEngine.Free;
     FInputDiagnostics.Free;
     FLongNeuralReranker := nil;
+    FCharLm := nil;
     FStateStore.Free;
     FContexts.Free;
     inherited Destroy;
@@ -474,6 +485,7 @@ begin
     task := Default(TncLocalCompletionTask);
     if not FEngine.get_prefetch_long_neural_completion_request(task.request) then Exit;
     task.context_id := context.Id;
+    task.context_instance_id := context.InstanceId;
     task.generation_id := context.Generation;
     FLocalCompletionHost.Prefetch(task);
 end;
@@ -591,8 +603,23 @@ begin
     if not FEngine.get_long_neural_completion_request(task.request) then
         Exit;
     task.context_id := context.Id;
+    task.context_instance_id := context.InstanceId;
     task.generation_id := context.Generation;
     Result := FLocalCompletionHost.Enqueue(task);
+end;
+
+function TncEngineService.QueueOneKeyRerank(const context: TncEngineContext): Boolean;
+var task: TncOneKeyRerankTask;
+begin
+    Result := False;
+    if (context = nil) or (FEngine = nil) or (FOneKeyRerankHost = nil) or
+        not context.Active or (context.Composition = '') then Exit;
+    task := Default(TncOneKeyRerankTask);
+    if not FEngine.get_one_key_rerank_request(task.request) then Exit;
+    task.context_id := context.Id;
+    task.context_instance_id := context.InstanceId;
+    task.generation_id := context.Generation;
+    Result := FOneKeyRerankHost.Enqueue(task);
 end;
 
 function TncEngineService.RemoveCandidate(const context: TncEngineContext;
@@ -947,7 +974,9 @@ begin
         end;
         SyncStateFromEngine;
         PopulateResult(context, Result);
-        Result.async_pending := QueueLongNeuralCompletion(context);
+        context.LongCompletionPending := QueueLongNeuralCompletion(context);
+        context.OneKeyRerankPending := QueueOneKeyRerank(context);
+        Result.async_pending := context.LongCompletionPending or context.OneKeyRerankPending;
     except
         on exception_value: Exception do
         begin
@@ -964,23 +993,39 @@ function TncEngineService.PollResult(const context_id: QWord;
 var
     context: TncEngineContext;
     finished: TncLocalCompletionFinished;
+    one_key: TncOneKeyRerankFinished;
+    delivered: Boolean;
 begin
     nc_initialize_engine_result(Result);
     context := FContexts.Find(context_id);
-    if (context = nil) or (FLocalCompletionHost = nil) or
-        (context.Generation <> generation_id) then
-        Exit;
-    if not FLocalCompletionHost.TryPopFinishedFor(context_id, finished) then
-        Exit;
-    if (finished.task.generation_id <> generation_id) or
-        (not context.Active) or (not ActivateContext(context)) then
-        Exit;
-
-    if finished.accepted then
-        FEngine.apply_long_neural_completion(finished.task.request,
-            finished.completion_result);
+    if (context = nil) or (context.Generation <> generation_id) or
+        not context.Active then Exit;
+    delivered := False;
+    if (FLocalCompletionHost <> nil) and
+        FLocalCompletionHost.TryPopFinishedFor(context_id, finished) and
+        (finished.task.context_instance_id = context.InstanceId) and
+        (finished.task.generation_id = generation_id) then
+    begin
+        context.LongCompletionPending := False;
+        if not ActivateContext(context) then Exit;
+        if finished.accepted then
+            FEngine.apply_long_neural_completion(finished.task.request, finished.completion_result);
+        delivered := True;
+    end;
+    if (FOneKeyRerankHost <> nil) and
+        FOneKeyRerankHost.TryPopFinishedFor(context_id, one_key) and
+        (one_key.task.context_instance_id = context.InstanceId) and
+        (one_key.task.generation_id = generation_id) then
+    begin
+        context.OneKeyRerankPending := False;
+        if not ActivateContext(context) then Exit;
+        if one_key.changed then FEngine.apply_one_key_rerank(one_key.task.request, one_key.chosen);
+        delivered := True;
+    end;
+    if not delivered then Exit;
     Result.handled := True;
     PopulateResult(context, Result);
+    Result.async_pending := context.LongCompletionPending or context.OneKeyRerankPending;
 end;
 
 function TncEngineService.CandidateActionVerified(const context_id, generation_id,

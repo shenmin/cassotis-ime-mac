@@ -4,6 +4,7 @@ import hashlib
 from pathlib import Path, PurePosixPath
 import re
 import sys
+from char_lm_model_parts import restore
 
 
 def verify_assets(root):
@@ -21,6 +22,8 @@ def verify_assets(root):
         expected[name] = checksum
     if 'data/schema.sql' not in expected or not any(name.startswith('data/models/') for name in expected):
         raise ValueError('Runtime asset manifest is incomplete')
+    if 'data/models/char_lm/char_lm.onnx' in expected:
+        restore(root / 'data/models/char_lm')
     failures = []
     for name, checksum in expected.items():
         path = root / name
