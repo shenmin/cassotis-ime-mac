@@ -20,7 +20,8 @@ interface
 uses SysUtils, Classes, SyncObjs, Dynlibs, nc_platform_compat, Generics.Collections, nc_char_lm;
 
 type
-    TncCharLmHost = class(TInterfacedObject, IncCharLm, IncCharLmNext, IncCharLmContinue)
+    TncCharLmHost = class(TInterfacedObject, IncCharLm, IncCharLmNext, IncCharLmQuery,
+        IncCharLmContinue)
     private type
         TCreateModel = function(directory: PAnsiChar; intra_threads: Integer;
             error_text: PAnsiChar; capacity: Integer): Pointer; cdecl;
@@ -31,6 +32,11 @@ type
             count, min_count, max_nodes: Integer; out_logp: PSingle; next_indices: PInteger;
             next_count, top_k: Integer; out_next_code_points: PCardinal; out_next_logp: PSingle;
             timeout_ms: Integer; error_text: PAnsiChar; capacity: Integer): Integer; cdecl;
+        TScoreTextsQuery = function(handle: Pointer; context: PWideChar; texts: PPWideChar;
+            count, min_count, max_nodes: Integer; out_logp: PSingle; next_indices: PInteger;
+            next_count, query_count: Integer; query_code_points: PCardinal;
+            out_query_logp: PSingle; timeout_ms: Integer; error_text: PAnsiChar;
+            capacity: Integer): Integer; cdecl;
         TContinueText = function(handle: Pointer; context, prefix: PWideChar;
             max_chars: Integer; out_text: PWideChar; out_capacity: Integer; out_logp: PSingle;
             timeout_ms: Integer; error_text: PAnsiChar; capacity: Integer): Integer; cdecl;
@@ -45,6 +51,7 @@ type
         m_handle: Pointer;
         m_score: TScoreTexts;
         m_score_next: TScoreTextsNext;
+        m_score_query: TScoreTextsQuery;
         m_continue: TContinueText;
         m_destroy: TDestroyModel;
         m_gate: TCriticalSection;
@@ -59,10 +66,19 @@ type
         procedure plain_cache_put(const key: string; const logp: TArray<Single>);
         procedure load;
         function enter_foreground: Boolean;
+        // Asks for next characters (top_k > 0) or for asked characters
+        // (query_count > 0) after next_texts, not both.
         function run_score(const context: string; const texts: TArray<string>;
             const min_count, max_nodes: Integer; const next_texts: TArray<Integer>;
-            const top_k: Integer; out logp: TArray<Single>; out next_chars: TArray<string>;
-            out next_logp: TArray<Single>): Integer;
+            const top_k: Integer; const query_chars: TArray<string>; const query_count: Integer;
+            out logp: TArray<Single>; out next_chars: TArray<string>;
+            out next_logp, query_logp: TArray<Single>): Integer;
+        function score(const background: Boolean; const context: string;
+            const texts: TArray<string>; const min_count, max_nodes: Integer;
+            const next_texts: TArray<Integer>; const top_k: Integer;
+            const query_chars: TArray<string>; const query_count: Integer;
+            out logp: TArray<Single>; out next_chars: TArray<string>;
+            out next_logp, query_logp: TArray<Single>): Integer;
         function run_continue(const context, text: string; const max_chars: Integer;
             out chars: TArray<string>; out logp: TArray<Single>): Integer;
     public
@@ -83,6 +99,15 @@ type
             const min_count, max_nodes: Integer; const next_texts: TArray<Integer>;
             const top_k: Integer; out logp: TArray<Single>; out next_chars: TArray<string>;
             out next_logp: TArray<Single>): Integer;
+        function score_texts_query(const context: string; const texts: TArray<string>;
+            const min_count, max_nodes: Integer; const next_texts: TArray<Integer>;
+            const query_chars: TArray<string>; const query_count: Integer;
+            out logp: TArray<Single>; out query_logp: TArray<Single>): Integer;
+        function score_texts_query_background(const context: string;
+            const texts: TArray<string>; const min_count, max_nodes: Integer;
+            const next_texts: TArray<Integer>; const query_chars: TArray<string>;
+            const query_count: Integer; out logp: TArray<Single>;
+            out query_logp: TArray<Single>): Integer;
         function continue_text(const context, text: string; const max_chars: Integer;
             out chars: TArray<string>; out logp: TArray<Single>): Integer;
         function continue_text_background(const context, text: string;
@@ -146,7 +171,7 @@ type
         constructor Create(const owner: TncCharLmHost);
     end;
 
-    TncCharLmBackgroundView = class(TInterfacedObject, IncCharLm, IncCharLmNext, IncCharLmContinue)
+    TncCharLmBackgroundView = class(TInterfacedObject, IncCharLm, IncCharLmNext, IncCharLmQuery, IncCharLmContinue)
     private
         m_host: TncCharLmHost;
         m_keep: IncCharLm;
@@ -159,6 +184,10 @@ type
             const min_count, max_nodes: Integer; const next_texts: TArray<Integer>;
             const top_k: Integer; out logp: TArray<Single>; out next_chars: TArray<string>;
             out next_logp: TArray<Single>): Integer;
+        function score_texts_query(const context: string; const texts: TArray<string>;
+            const min_count, max_nodes: Integer; const next_texts: TArray<Integer>;
+            const query_chars: TArray<string>; const query_count: Integer;
+            out logp: TArray<Single>; out query_logp: TArray<Single>): Integer;
         function continue_text(const context, text: string; const max_chars: Integer;
             out chars: TArray<string>; out logp: TArray<Single>): Integer;
     end;
@@ -188,6 +217,15 @@ function TncCharLmBackgroundView.score_texts_next(const context: string;
 begin
     Result := m_host.score_texts_next_background(context, texts, min_count, max_nodes,
         next_texts, top_k, logp, next_chars, next_logp);
+end;
+
+function TncCharLmBackgroundView.score_texts_query(const context: string;
+    const texts: TArray<string>; const min_count, max_nodes: Integer;
+    const next_texts: TArray<Integer>; const query_chars: TArray<string>;
+    const query_count: Integer; out logp: TArray<Single>; out query_logp: TArray<Single>): Integer;
+begin
+    Result := m_host.score_texts_query_background(context, texts, min_count, max_nodes,
+        next_texts, query_chars, query_count, logp, query_logp);
 end;
 
 function TncCharLmBackgroundView.continue_text(const context, text: string;
@@ -232,6 +270,21 @@ begin
     if cp < $10000 then Result := WideChar(cp)
     else Result := UnicodeString(WideChar($D800 + ((cp - $10000) shr 10))) +
         WideChar($DC00 + ((cp - $10000) and $3FF));
+end;
+
+function code_point_value(const text: string): Cardinal;
+var first, last: Cardinal;
+begin
+    Result := 0;
+    if text = '' then Exit;
+    first := Ord(text[1]);
+    if (Length(text) = 1) and ((first < $D800) or (first > $DFFF)) then
+        Exit(first);
+    if Length(text) <> 2 then Exit;
+    last := Ord(text[2]);
+    if (first >= $D800) and (first <= $DBFF) and
+        (last >= $DC00) and (last <= $DFFF) then
+        Result := $10000 + ((first - $D800) shl 10) + last - $DC00;
 end;
 
 constructor TncCharLmHost.Create(const directory: string; background: Boolean;
@@ -364,6 +417,7 @@ begin
         m_score_next := TScoreTextsNext(GetProcedureAddress(m_module, 'nc_lm_score_next'));
         m_destroy := TDestroyModel(GetProcedureAddress(m_module, 'nc_lm_destroy'));
         m_continue := TContinueText(GetProcedureAddress(m_module, 'nc_lm_continue'));
+        m_score_query := TScoreTextsQuery(GetProcedureAddress(m_module, 'nc_lm_score_next_query'));
         if not Assigned(create_model) or not Assigned(m_score) or not Assigned(m_destroy) then
             raise EInvalidOp.Create('Character LM runtime must be rebuilt');
         folder_utf8 := UTF8Encode(folder);
@@ -409,10 +463,12 @@ begin
         next_chars, next_logp);
 end;
 
-function TncCharLmHost.score_texts_next(const context: string; const texts: TArray<string>;
-    const min_count, max_nodes: Integer; const next_texts: TArray<Integer>;
-    const top_k: Integer; out logp: TArray<Single>; out next_chars: TArray<string>;
-    out next_logp: TArray<Single>): Integer;
+function TncCharLmHost.score(const background: Boolean; const context: string;
+    const texts: TArray<string>; const min_count, max_nodes: Integer;
+    const next_texts: TArray<Integer>; const top_k: Integer;
+    const query_chars: TArray<string>; const query_count: Integer;
+    out logp: TArray<Single>; out next_chars: TArray<string>;
+    out next_logp, query_logp: TArray<Single>): Integer;
 var
     key: string;
 begin
@@ -420,24 +476,47 @@ begin
     SetLength(logp, 0);
     SetLength(next_chars, 0);
     SetLength(next_logp, 0);
+    SetLength(query_logp, 0);
     if not char_lm_ready then Exit;
-    key := plain_cache_key(context, texts, min_count, next_texts);
+    key := '';
+    if query_count = 0 then
+        key := plain_cache_key(context, texts, min_count, next_texts);
     if (key <> '') and plain_cache_get(key, logp) then
         Exit(Length(logp));
-    InterlockedIncrement(m_foreground_waiting);
-    try
-        if not enter_foreground then Exit;
-    finally
-        InterlockedDecrement(m_foreground_waiting);
+    if background then
+    begin
+        while InterlockedCompareExchange(m_foreground_waiting, 0, 0) > 0 do
+            Sleep(1);
+        m_gate.Acquire;
+    end
+    else
+    begin
+        InterlockedIncrement(m_foreground_waiting);
+        try
+            if not enter_foreground then Exit;
+        finally
+            InterlockedDecrement(m_foreground_waiting);
+        end;
     end;
     try
-        Result := run_score(context, texts, min_count, max_nodes, next_texts, top_k, logp,
-            next_chars, next_logp);
+        Result := run_score(context, texts, min_count, max_nodes, next_texts, top_k,
+            query_chars, query_count, logp, next_chars, next_logp, query_logp);
+        if (key <> '') and (Result = Length(texts)) then
+            plain_cache_put(key, logp);
     finally
         m_gate.Release;
     end;
-    if (key <> '') and (Result = Length(texts)) then
-        plain_cache_put(key, logp);
+end;
+
+function TncCharLmHost.score_texts_next(const context: string; const texts: TArray<string>;
+    const min_count, max_nodes: Integer; const next_texts: TArray<Integer>;
+    const top_k: Integer; out logp: TArray<Single>; out next_chars: TArray<string>;
+    out next_logp: TArray<Single>): Integer;
+var
+    query_logp: TArray<Single>;
+begin
+    Result := score(False, context, texts, min_count, max_nodes, next_texts, top_k, nil, 0,
+        logp, next_chars, next_logp, query_logp);
 end;
 
 function TncCharLmHost.score_texts_next_background(const context: string;
@@ -445,27 +524,34 @@ function TncCharLmHost.score_texts_next_background(const context: string;
     const next_texts: TArray<Integer>; const top_k: Integer; out logp: TArray<Single>;
     out next_chars: TArray<string>; out next_logp: TArray<Single>): Integer;
 var
-    key: string;
+    query_logp: TArray<Single>;
 begin
-    Result := -1;
-    SetLength(logp, 0);
-    SetLength(next_chars, 0);
-    SetLength(next_logp, 0);
-    if not char_lm_ready then Exit;
-    key := plain_cache_key(context, texts, min_count, next_texts);
-    if (key <> '') and plain_cache_get(key, logp) then
-        Exit(Length(logp));
-    while InterlockedCompareExchange(m_foreground_waiting, 0, 0) > 0 do
-        Sleep(1);
-    m_gate.Acquire;
-    try
-        Result := run_score(context, texts, min_count, max_nodes, next_texts, top_k, logp,
-            next_chars, next_logp);
-        if (key <> '') and (Result = Length(texts)) then
-            plain_cache_put(key, logp);
-    finally
-        m_gate.Release;
-    end;
+    Result := score(True, context, texts, min_count, max_nodes, next_texts, top_k, nil, 0,
+        logp, next_chars, next_logp, query_logp);
+end;
+
+function TncCharLmHost.score_texts_query(const context: string; const texts: TArray<string>;
+    const min_count, max_nodes: Integer; const next_texts: TArray<Integer>;
+    const query_chars: TArray<string>; const query_count: Integer;
+    out logp: TArray<Single>; out query_logp: TArray<Single>): Integer;
+var
+    next_chars: TArray<string>;
+    next_logp: TArray<Single>;
+begin
+    Result := score(False, context, texts, min_count, max_nodes, next_texts, 0, query_chars,
+        query_count, logp, next_chars, next_logp, query_logp);
+end;
+
+function TncCharLmHost.score_texts_query_background(const context: string;
+    const texts: TArray<string>; const min_count, max_nodes: Integer;
+    const next_texts: TArray<Integer>; const query_chars: TArray<string>;
+    const query_count: Integer; out logp: TArray<Single>; out query_logp: TArray<Single>): Integer;
+var
+    next_chars: TArray<string>;
+    next_logp: TArray<Single>;
+begin
+    Result := score(True, context, texts, min_count, max_nodes, next_texts, 0, query_chars,
+        query_count, logp, next_chars, next_logp, query_logp);
 end;
 
 function TncCharLmHost.background_view: IncCharLm;
@@ -475,8 +561,9 @@ end;
 
 function TncCharLmHost.run_score(const context: string; const texts: TArray<string>;
     const min_count, max_nodes: Integer; const next_texts: TArray<Integer>;
-    const top_k: Integer; out logp: TArray<Single>; out next_chars: TArray<string>;
-    out next_logp: TArray<Single>): Integer;
+    const top_k: Integer; const query_chars: TArray<string>; const query_count: Integer;
+    out logp: TArray<Single>; out next_chars: TArray<string>;
+    out next_logp, query_logp: TArray<Single>): Integer;
 var
     pointers: TArray<PWideChar>;
     code_points: TArray<Cardinal>;
@@ -487,9 +574,15 @@ begin
     SetLength(logp, 0);
     SetLength(next_chars, 0);
     SetLength(next_logp, 0);
+    SetLength(query_logp, 0);
     if (Length(texts) = 0) or (min_count < 1) or (min_count > Length(texts)) then Exit;
-    if (Length(next_texts) > 0) and ((top_k < 1) or (top_k > 32) or
-        (Length(next_texts) > Length(texts))) then Exit;
+    if (Length(next_texts) > Length(texts)) or (query_count < 0) then Exit;
+    if query_count > 0 then
+    begin
+        if (top_k > 0) or (query_count > 64) or (Length(next_texts) = 0) or
+            (Length(query_chars) <> Length(next_texts) * query_count) then Exit;
+    end
+    else if (Length(next_texts) > 0) and ((top_k < 1) or (top_k > 32)) then Exit;
     // The native ABI uses terminated UTF-16 strings; never silently truncate.
     if Pos(#0, context) > 0 then Exit;
     SetLength(pointers, Length(texts));
@@ -499,27 +592,51 @@ begin
         pointers[idx] := PWideChar(texts[idx]);
     end;
     SetLength(logp, Length(texts));
-    SetLength(next_chars, Length(next_texts) * top_k);
-    SetLength(next_logp, Length(next_texts) * top_k);
-    if (Length(next_texts) > 0) and Assigned(m_score_next) then
+    if (query_count > 0) and not Assigned(m_score_query) then
     begin
-        SetLength(code_points, Length(next_texts) * top_k);
-        Result := m_score_next(m_handle, PWideChar(context), @pointers[0], Length(texts),
-            min_count, max_nodes, @logp[0], @next_texts[0], Length(next_texts), top_k,
-            @code_points[0], @next_logp[0], m_timeout_ms, @error_text[0], Length(error_text));
-        for idx := 0 to High(code_points) do
-            if code_points[idx] <> 0 then
-                next_chars[idx] := code_point_text(code_points[idx]);
-    end
-    else
+        // An older runtime scores without them: no answer for any.
+        SetLength(query_logp, Length(query_chars));
+        for idx := 0 to High(query_logp) do
+            query_logp[idx] := c_char_lm_no_logp;
         Result := m_score(m_handle, PWideChar(context), @pointers[0], Length(texts),
             min_count, max_nodes, @logp[0], m_timeout_ms, @error_text[0], Length(error_text));
+    end
+    else if query_count > 0 then
+    begin
+        SetLength(code_points, Length(query_chars));
+        for idx := 0 to High(query_chars) do
+            if query_chars[idx] <> '' then
+                code_points[idx] := code_point_value(query_chars[idx]);
+        SetLength(query_logp, Length(query_chars));
+        Result := m_score_query(m_handle, PWideChar(context), @pointers[0], Length(texts),
+            min_count, max_nodes, @logp[0], @next_texts[0], Length(next_texts), query_count,
+            @code_points[0], @query_logp[0], m_timeout_ms, @error_text[0], Length(error_text));
+    end
+    else
+    begin
+        SetLength(next_chars, Length(next_texts) * top_k);
+        SetLength(next_logp, Length(next_texts) * top_k);
+        if (Length(next_texts) > 0) and Assigned(m_score_next) then
+        begin
+            SetLength(code_points, Length(next_texts) * top_k);
+            Result := m_score_next(m_handle, PWideChar(context), @pointers[0], Length(texts),
+                min_count, max_nodes, @logp[0], @next_texts[0], Length(next_texts), top_k,
+                @code_points[0], @next_logp[0], m_timeout_ms, @error_text[0], Length(error_text));
+            for idx := 0 to High(code_points) do
+                if code_points[idx] <> 0 then
+                    next_chars[idx] := code_point_text(code_points[idx]);
+        end
+        else
+            Result := m_score(m_handle, PWideChar(context), @pointers[0], Length(texts),
+                min_count, max_nodes, @logp[0], m_timeout_ms, @error_text[0], Length(error_text));
+    end;
     if Result < min_count then
     begin
         Result := -1;
         SetLength(logp, 0);
         SetLength(next_chars, 0);
         SetLength(next_logp, 0);
+        SetLength(query_logp, 0);
     end
     else
         SetLength(logp, Result);

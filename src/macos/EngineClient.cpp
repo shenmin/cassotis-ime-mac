@@ -61,7 +61,7 @@ static bool sameCandidate(const Candidate &a,const Candidate &b) {
     return a.text==b.text && a.comment==b.comment && a.source==b.source && a.kind==b.kind && a.deletable==b.deletable;
 }
 Result decodeResult(const Bytes &data) {
-    Reader r(data); auto version=r.schema(); require(version>=1 && version<=6,"Unsupported result schema"); Result v;
+    Reader r(data); auto version=r.schema(); require(version>=1 && version<=7,"Unsupported result schema"); Result v;
     auto handled=r.u8(); require(handled<=1 && r.u16()==0,"Invalid result flags"); v.handled=handled;
     auto flags=r.u8(); require((flags&~1)==0,"Invalid result flags"); v.pending=flags&1;
     v.selected=int32_t(r.u32()); v.page=int32_t(r.u32()); v.pages=int32_t(r.u32()); auto error=r.u32();
@@ -122,6 +122,15 @@ Result decodeResult(const Bytes &data) {
             std::all_of(v.rawInput.begin(),v.rawInput.end(),[](unsigned char c){return (c>='a' && c<='z') || (c>='A' && c<='Z');}) &&
             (!selected || (!v.rawInput.empty() && v.page==0)),"Invalid raw input candidate");
         v.rawSelected=selected;
+    }
+    if(version>=7) {
+        auto enabled=r.u8(),source=r.u8(),reported=r.u8();
+        require(enabled<=1 && source<=uint8_t(LeftContextSource::Session) && reported<=1 && r.u8()==0,
+            "Invalid debug context flags");
+        v.debugContext=r.string();
+        require(enabled || (source==0 && !reported && v.debugContext.empty()),"Unexpected debug context");
+        v.debugContextEnabled=enabled; v.debugContextReported=reported;
+        v.debugContextSource=LeftContextSource(source);
     }
     r.end(); require(v.selected>=-1 && v.selected<int32_t(count),"Invalid candidate selection");
     require(v.page>=0 && v.pages>=0 && (v.pages==0 || v.page<v.pages),"Invalid candidate page");
@@ -228,7 +237,12 @@ Bytes EngineClient::transact(uint16_t type,const Bytes &payload,int timeoutMs) {
 }
 void EngineClient::active(bool v) { Writer w; w.schema(); w.u8(v); transact(8,w.data); }
 void EngineClient::reset() { transact(7,{}); }
-void EngineClient::surrounding(const std::string &s,int32_t c) { Writer w; w.schema(); w.u32(uint32_t(c)); w.string(s); transact(9,w.data); }
+void EngineClient::surrounding(const std::string &s,int32_t c,bool reported) {
+    require(reported || (s.empty() && c==0),"Unavailable surrounding text must be empty");
+    Writer w;w.schema(reported?1:2);w.u32(uint32_t(c));w.string(s);
+    if(!reported) w.u8(0);
+    transact(9,w.data);
+}
 Result EngineClient::key(const Key &k) {
     try { return decodeResult(transact(10,encodeKey(k))); } catch(...) { disconnect();throw; }
 }

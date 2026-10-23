@@ -1,6 +1,6 @@
 # Compatibility
 
-Version 2.0.0 (build 4) targets Apple Silicon and macOS 14 or later. Build and desktop validation used macOS 27.0.1, an Apple M2 Pro, Xcode 27.0 and Free Pascal 3.2.2.
+Version 2.1.0 (build 5) targets Apple Silicon and macOS 14 or later. Build and desktop validation used macOS 27.0.1, an Apple M2 Pro, Xcode 27.0 and Free Pascal 3.2.2.
 
 | Environment | Validation status |
 | --- | --- |
@@ -10,7 +10,7 @@ Version 2.0.0 (build 4) targets Apple Silicon and macOS 14 or later. Build and d
 | NSTextView and NSTextField | IMK composition and Chinese commit tested |
 | WKWebView input | Composition events and Chinese commit tested |
 | NSSecureTextField | ASCII input without IMK composition tested |
-| Chrome 154, Electron 44 and Terminal | Actual input and switching between applications tested |
+| Chrome 156, Electron 44 and Terminal | Actual input and switching between applications tested |
 
 The frontend uses public InputMethodKit and AppKit APIs. Normal operation does not require Accessibility, Input Monitoring or event-posting permission. To notice a key or click that the frontmost application consumed while a modifier was held, modifier-only shortcuts compare system-wide event counts and times from public Quartz event-source counters; these reveal no key contents.
 
@@ -25,3 +25,5 @@ When a client cannot provide surrounding text, composition continues with an emp
 Sleep/wake behavior and other third-party application combinations require further runtime validation. Published measurements and their scope are described in [BENCHMARK.md](BENCHMARK.md).
 
 Pinyin diagnostics highlight invalid ranges in the footer beneath the candidate rows, alongside any Tab completion and the logo. The input method also supplies marked-text color attributes, but InputMethodKit or the receiving application may replace inline colors with system styling. The candidate diagnostic remains visible, including when invalid input has no candidates, and clears when the Pinyin is corrected.
+
+Version 2.1.0 native regressions additionally cover Taiwan traditional forms in model scoring, candidates, paging, Tab completion and commits; literal custom phrases remain unchanged. Short-phrase generation outside the dictionary and full-sentence Pinyin-conditioned rewriting remain restricted to simplified Chinese, matching the shared engine. Installed desktop checks also verify traditional commits, custom phrases in both scripts, the debug footer and automatic persistence of its independent switch. Native regressions verify that the optional debug footer distinguishes document context, committed text, selected segments, known-empty context and unavailable context; it is off by default and independent of logging.

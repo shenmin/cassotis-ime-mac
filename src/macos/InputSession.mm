@@ -399,19 +399,21 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
 - (NSString *)surroundingText {
     @try {
         NSRange selected=[self.client selectedRange];
-        if(selected.location==NSNotFound) return @"";
+        if(selected.location==NSNotFound) return nil;
+        if(selected.location==0) return @"";
         NSUInteger start=selected.location>1024?selected.location-1024:0;
         NSAttributedString *prefix=[self.client attributedSubstringFromRange:NSMakeRange(start,selected.location-start)];
-        NSString *text=prefix.string?:@"";
+        if(!prefix) return nil;
+        NSString *text=prefix.string;
         if(text.length>1024) text=[text substringFromIndex:text.length-1024];
         if(text.length && CFStringIsSurrogateLowCharacter([text characterAtIndex:0])) text=[text substringFromIndex:1];
         return text;
-    } @catch(NSException *e) { (void)e; return @""; }
+    } @catch(NSException *e) { (void)e; return nil; }
 }
 - (void)syncSurrounding {
     if(!_result.preedit.empty()) return;
     NSString *text=[self surroundingText];
-    _engine->surrounding(utf8(text),(int32_t)text.length);
+    _engine->surrounding(utf8(text),(int32_t)text.length,text!=nil);
 }
 - (void)clearStartup {
     _startupKeys.clear();_startupText=nil;_startupContext=nil;
@@ -460,7 +462,7 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     try {
         // Read context before the provisional marked range was inserted. Keep
         // that range visible until all already-consumed keys have been replayed.
-        _engine->surrounding(utf8(_startupContext),(int32_t)_startupContext.length);
+        _engine->surrounding(utf8(_startupContext),(int32_t)_startupContext.length,_startupContext!=nil);
         cassotis::Result final;std::string committed;
         for(const auto &key:_startupKeys) {
             if(final.preedit.empty() && !committed.empty()) {
@@ -468,7 +470,7 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
                 if(context.length>1024)context=[context substringFromIndex:context.length-1024];
                 if(context.length && CFStringIsSurrogateLowCharacter([context characterAtIndex:0]))
                     context=[context substringFromIndex:1];
-                _engine->surrounding(utf8(context),(int32_t)context.length);
+                _engine->surrounding(utf8(context),(int32_t)context.length,_startupContext!=nil);
             }
             final=_engine->key(key);committed+=final.commit;
             if(!final.handled) {

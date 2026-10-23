@@ -19,6 +19,7 @@ type
         FGeneration: QWord;
         FActive: Boolean;
         FSurroundingText: string;
+        FSurroundingReported: Boolean;
         FCursorOffset: Integer;
         FComposition: string;
         FQuickInputExplicitEntry: Boolean;
@@ -61,11 +62,13 @@ type
             out action: TncShortcutAction; out should_execute: Boolean): Boolean;
         procedure MoveSelection(const delta: Integer);
         procedure SelectCandidate(const candidate_index: Integer);
-        procedure SetSurrounding(const text: string; const cursor_offset: Integer);
+        procedure SetSurrounding(const text: string; const cursor_offset: Integer;
+            const reported: Boolean = True);
         property Id: QWord read FId;
         property InstanceId: QWord read FInstanceId;
         property Generation: QWord read FGeneration;
         property Active: Boolean read FActive write FActive;
+        property SurroundingReported: Boolean read FSurroundingReported;
         property SurroundingText: string read FSurroundingText;
         property CursorOffset: Integer read FCursorOffset;
         property Composition: string read FComposition;
@@ -133,6 +136,7 @@ procedure TncEngineContext.Reset;
 begin
     FActive := False;
     FSurroundingText := '';
+    FSurroundingReported := False;
     FCursorOffset := 0;
     ClearModifierShortcut;
     ClearComposition;
@@ -306,9 +310,10 @@ begin
 end;
 
 procedure TncEngineContext.SetSurrounding(const text: string;
-    const cursor_offset: Integer);
+    const cursor_offset: Integer; const reported: Boolean);
 begin
     FSurroundingText := text;
+    FSurroundingReported := reported;
     if cursor_offset < 0 then
         FCursorOffset := 0
     else if cursor_offset > Length(text) then

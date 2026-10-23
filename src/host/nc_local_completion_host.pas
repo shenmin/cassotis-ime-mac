@@ -13,6 +13,9 @@ const c_nc_local_completion_result_timeout_ms = 80;
 type
     TncLocalCompletionHost = class;
     TncLocalCompletionTask = record
+        // Capture the script with the request, so a queued task cannot adopt
+        // a later settings change while the worker is scoring it.
+        dictionary_variant: TncDictionaryVariant;
         context_id, context_instance_id, generation_id: QWord;
         request: TncLongNeuralCompletionRequest;
     end;
@@ -55,7 +58,7 @@ type
     end;
 
 implementation
-uses nc_pinyin_parser;
+uses nc_pinyin_parser, nc_char_lm_traditional;
 
 constructor TncLocalCompletionWorker.Create(
     const owner: TncLocalCompletionHost);
@@ -175,6 +178,8 @@ begin
     end;
     if char_lm = nil then
         Exit;
+    if task.dictionary_variant = dv_traditional then
+        char_lm := nc_traditional_char_lm(char_lm);
     started_at := nc_monotonic_tick_ms;
     // The engine's tail and next words stay on the result, so reports see
     // them and the chosen one can be returned with its reading.

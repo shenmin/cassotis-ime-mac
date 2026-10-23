@@ -38,6 +38,7 @@ struct CandidatePage {
 };
 struct PreeditWarning { uint32_t start = 0, length = 0; uint8_t kind = 0; };
 enum class CompletionSource : uint8_t { None, UserExact, BaseExact, Transition, LongTransition, LongNeural, DocumentCopy, ExactTailFallback, CustomPhrase };
+enum class LeftContextSource : uint8_t { None, Segment, Document, Session };
 struct Result {
     bool handled = false, pending = false;
     int32_t selected = -1, page = 0, pages = 0;
@@ -45,6 +46,9 @@ struct Result {
     std::string selectionKeys = "123456789", rawInput;
     bool rawSelected = false;
     CompletionSource completionSource = CompletionSource::None;
+    bool debugContextEnabled = false, debugContextReported = false;
+    std::string debugContext;
+    LeftContextSource debugContextSource = LeftContextSource::None;
     std::vector<Candidate> candidates;
     std::vector<CandidatePage> candidatePages;
     uint64_t candidateRevision = 0;
@@ -91,7 +95,7 @@ public:
     void disconnect();
     void active(bool value);
     void reset();
-    void surrounding(const std::string &text, int32_t cursor);
+    void surrounding(const std::string &text, int32_t cursor, bool reported = true);
     Result key(const Key &value);
     Result poll();
     Result removeCandidate(int32_t index, const std::string &query, const Candidate &expected);

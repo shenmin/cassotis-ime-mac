@@ -29,10 +29,13 @@ function nc_try_decode_set_active_payload(const payload: TBytes;
     out active: Boolean; out error_text: string): Boolean;
 
 function nc_encode_surrounding_payload(const text: string;
-    const cursor_offset: Integer): TBytes;
+    const cursor_offset: Integer; const reported: Boolean = True): TBytes;
 function nc_try_decode_surrounding_payload(const payload: TBytes;
     out text: string; out cursor_offset: Integer;
-    out error_text: string): Boolean;
+    out error_text: string): Boolean; overload;
+function nc_try_decode_surrounding_payload(const payload: TBytes;
+    out text: string; out cursor_offset: Integer; out reported: Boolean;
+    out error_text: string): Boolean; overload;
 
 function nc_encode_key_event_payload(const key_event: TncKeyEvent): TBytes;
 function nc_try_decode_key_event_payload(const payload: TBytes;
@@ -548,17 +551,21 @@ begin
 end;
 
 function nc_encode_surrounding_payload(const text: string;
-    const cursor_offset: Integer): TBytes;
+    const cursor_offset: Integer; const reported: Boolean): TBytes;
 var
     writer: TncIpcPayloadWriter;
 begin
     if cursor_offset < 0 then
         raise EncIpcPayloadError.Create('Surrounding cursor offset is negative');
+    if not reported and ((text <> '') or (cursor_offset <> 0)) then
+        raise EncIpcPayloadError.Create('Unavailable surrounding text must be empty');
     writer := TncIpcPayloadWriter.Create;
     try
-        WritePayloadHeader(writer);
+        if reported then WritePayloadHeader(writer)
+        else WritePayloadHeaderVersion(writer, 2);
         writer.WriteInt32(cursor_offset);
         writer.WriteString(text);
+        if not reported then writer.WriteBoolean(False);
         Result := writer.Finish;
     finally
         writer.Free;
@@ -568,15 +575,31 @@ end;
 function nc_try_decode_surrounding_payload(const payload: TBytes;
     out text: string; out cursor_offset: Integer;
     out error_text: string): Boolean;
+var reported: Boolean;
+begin
+    Result := nc_try_decode_surrounding_payload(payload, text, cursor_offset, reported, error_text);
+end;
+
+function nc_try_decode_surrounding_payload(const payload: TBytes;
+    out text: string; out cursor_offset: Integer; out reported: Boolean;
+    out error_text: string): Boolean;
 var
     reader: TncIpcPayloadReader;
+    version: Word;
 begin
     text := '';
     cursor_offset := 0;
+    reported := True;
     reader := TncIpcPayloadReader.Create(payload);
     try
-        Result := ReadPayloadHeader(reader) and
+        Result := ReadPayloadHeaderVersion(reader, version) and (version <= 2) and
             reader.ReadInt32(cursor_offset) and reader.ReadString(text);
+        if Result and (version >= 2) then Result := reader.ReadBoolean(reported);
+        if Result and not reported and ((text <> '') or (cursor_offset <> 0)) then
+        begin
+            reader.SetError('Unavailable surrounding text must be empty');
+            Result := False;
+        end;
         if Result and (cursor_offset < 0) then
         begin
             reader.SetError('Surrounding cursor offset is negative');
@@ -887,6 +910,13 @@ begin
             ((schema_version = 3) and (engine_result.completion_text = '')) then
             raise EncIpcPayloadError.Create('Invalid completion source');
         if engine_result.candidate_revision <> 0 then schema_version := 6;
+        if engine_result.debug_context_enabled then
+        begin
+            if (engine_result.candidate_revision = 0) or
+                (Ord(engine_result.debug_context_source) > Ord(High(TncLeftContextSource))) then
+                raise EncIpcPayloadError.Create('Invalid debug context snapshot');
+            schema_version := 7;
+        end;
         if (engine_result.selection_keys <> '') and (engine_result.selection_keys <> 'abcd') and
             (engine_result.selection_keys <> '123456789') then
             raise EncIpcPayloadError.Create('Invalid candidate selection keys');
@@ -957,6 +987,14 @@ begin
             writer.WriteString(engine_result.raw_input_candidate);
             writer.WriteBoolean(engine_result.raw_input_selected);
         end;
+        if schema_version >= 7 then
+        begin
+            writer.WriteBoolean(engine_result.debug_context_enabled);
+            writer.WriteByte(Ord(engine_result.debug_context_source));
+            writer.WriteBoolean(engine_result.debug_context_reported);
+            writer.WriteByte(0);
+            writer.WriteString(engine_result.debug_context_text);
+        end;
         Result := writer.Finish;
     finally
         writer.Free;
@@ -971,7 +1009,7 @@ var
     warning_count: Cardinal;
     warning_index, last_end: Integer;
     span: TncPreeditWarningSpan;
-    warning_reserved, completion_source: Byte;
+    warning_reserved, completion_source, debug_source, debug_reserved: Byte;
     result_flags: Byte;
     candidate_count: Cardinal;
     candidate_index: Integer;
@@ -986,7 +1024,7 @@ begin
     reader := TncIpcPayloadReader.Create(payload);
     try
         Result := ReadPayloadHeaderVersion(reader, version) and
-            ((version >= 1) and (version <= 6)) and
+            ((version >= 1) and (version <= 7)) and
             reader.ReadBoolean(engine_result.handled) and
             reader.ReadUInt16(reserved16) and reader.ReadByte(result_flags) and
             reader.ReadInt32(engine_result.selected_index) and
@@ -999,7 +1037,7 @@ begin
             reader.ReadString(engine_result.completion_text) and
             reader.ReadString(engine_result.error_text) and
             reader.ReadUInt32(candidate_count);
-        if (version < 1) or (version > 6) then
+        if (version < 1) or (version > 7) then
             reader.SetError('Unsupported engine result version');
         if Result and ((reserved16 <> 0) or
             ((result_flags and not c_engine_result_known_flags) <> 0)) then
@@ -1136,6 +1174,23 @@ begin
             for raw_ch in engine_result.raw_input_candidate do
                 if not CharInSet(raw_ch, ['a'..'z', 'A'..'Z']) then Result := False;
             if not Result then reader.SetError('Invalid raw input candidate');
+        end;
+        if Result and (version >= 7) then
+        begin
+            Result := reader.ReadBoolean(engine_result.debug_context_enabled) and
+                reader.ReadByte(debug_source) and
+                (debug_source <= Ord(High(TncLeftContextSource))) and
+                reader.ReadBoolean(engine_result.debug_context_reported) and
+                reader.ReadByte(debug_reserved) and (debug_reserved = 0) and
+                reader.ReadString(engine_result.debug_context_text);
+            if Result then
+            begin
+                engine_result.debug_context_source := TncLeftContextSource(debug_source);
+                Result := engine_result.debug_context_enabled or
+                    ((debug_source = 0) and not engine_result.debug_context_reported and
+                    (engine_result.debug_context_text = ''));
+            end;
+            if not Result then reader.SetError('Invalid debug context');
         end;
         Result := Result and reader.Finish(error_text);
         if not Result then

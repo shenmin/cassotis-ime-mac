@@ -40,6 +40,7 @@ rsync -a "$root/third_party/lexicon/" "$app/Contents/Resources/licenses/lexicon/
 rm -rf "$app/Contents/Resources/licenses/rbt3" "$app/Contents/Resources/licenses/macbert"
 rsync -a "$root/third_party/freepascal/" "$app/Contents/Resources/licenses/freepascal/"
 cp "$root/third_party/english/NOTICE" "$app/Contents/Resources/licenses/EnglishWordList.txt"
+cp "$root/third_party/opencc/LICENSE" "$app/Contents/Resources/licenses/OpenCC.txt"
 cp "$root/LICENSE" "$app/Contents/Resources/licenses/Cassotis.txt"
 cp "$root/third_party/onnxruntime/LICENSE" "$app/Contents/Resources/licenses/ONNXRuntime.txt"
 cp "$root/third_party/onnxruntime/ThirdPartyNotices.txt" "$app/Contents/Resources/licenses/ONNXRuntime-ThirdPartyNotices.txt"

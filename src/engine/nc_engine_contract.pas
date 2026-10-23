@@ -19,7 +19,7 @@ type
         function SetActive(const context_id: QWord; const active: Boolean;
             const generation_id: QWord): Boolean; virtual; abstract;
         function SetSurrounding(const context_id: QWord; const text: string;
-            const cursor_offset: Integer; const generation_id: QWord): Boolean;
+            const cursor_offset: Integer; const generation_id: QWord; const reported: Boolean = True): Boolean;
             virtual; abstract;
         function GetState(out state: TncEngineState): Boolean;
             virtual; abstract;

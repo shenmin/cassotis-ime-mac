@@ -66,7 +66,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     NSPopUpButton *_scheme, *_dictionary, *_pageKeys, *_completionKey, *_pageSize, *_theme, *_punctuationPreset;
     NSSlider *_fontSize;
     NSTextField *_fontSizeLabel, *_status, *_punctuationSymbols;
-    NSButton *_fullWidth, *_punctuation, *_decimalPeriod, *_fuzzy, *_retry, *_resetAppearance, *_logging, *_expandCandidates, *_rememberMode, *_autoEnglish;
+    NSButton *_fullWidth, *_punctuation, *_decimalPeriod, *_fuzzy, *_retry, *_resetAppearance, *_logging, *_debugMode, *_expandCandidates, *_rememberMode, *_autoEnglish;
     NSComboBox *_fontFamily;
     NSArray<NSString *> *_fontFamilies;
     NSMutableArray<NSButton *> *_rules, *_shortcutEnabled;
@@ -310,11 +310,13 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     NSButton *logs=[NSButton buttonWithTitle:@"打开日志文件夹" target:self action:@selector(openLogs:)];
     _logging=[self check:@"启用日志" identifier:@"logging-enabled"];
     _logging.action=@selector(loggingChanged:);
+    _debugMode=[self check:@"启用调试模式" identifier:@"debug-mode"];
     NSButton *config=[NSButton buttonWithTitle:@"打开配置文件夹" target:self action:@selector(openConfig:)];
     NSButton *clear=[NSButton buttonWithTitle:@"清除学习记录…" target:self action:@selector(clear:)];
     [self section:@"高级" views:@[[self card:@[_logging,
         [self hint:@"默认关闭。开启后记录启动和运行诊断，开关立即生效并自动保存，不中断输入。关闭后停止写入，已有日志保留。每份日志最多 2 MB，保留上一份记录。"],
         [self row:@"运行日志" control:logs]]],
+        [self card:@[_debugMode,[self hint:@"在候选栏右下角显示参与排序的上文及其来源。默认关闭，用于排查选词问题；此开关不启用日志。"]]],
         [self card:@[[self row:@"配置工具" control:config],[self row:@"用户词语与学习" control:clear]]],
         [self hint:@"所有词库学习和模型推理均在本机进行。清除学习记录不会更改设置、自定义短语或基础词库。"]]];
 
@@ -535,6 +537,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
         [_pageKeys selectItemAtIndex:_state.pageKeys]; [_completionKey selectItemAtIndex:_state.completionKey];
         [_pageSize selectItemAtIndex:_state.pageSize-3]; _fullWidth.state=(_state.flags&1)?1:0;
         _expandCandidates.state=(_state.flags&16)?1:0;
+        _debugMode.state=(_state.flags&8)?1:0;
         _punctuation.state=(_state.flags&2)?1:0; _decimalPeriod.state=(_state.flags&32)?1:0; _fuzzy.state=(_state.flags&4)?1:0;
         for(NSUInteger i=0;i<_rules.count;++i) { _rules[i].state=(_state.fuzzy&(1<<i))?1:0; _rules[i].enabled=_fuzzy.state!=0; }
         for(int i=0;i<5;++i) {
@@ -555,7 +558,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     _fontSize.doubleValue=best; _loading=NO;
     // Do not present placeholder engine state as editable user preferences.
     for(NSControl *control in @[_scheme,_dictionary,_pageKeys,_completionKey,_pageSize,_theme,_fontSize,
-        _fontFamily,_fullWidth,_punctuation,_fuzzy,_resetAppearance,_expandCandidates,_autoEnglish]) control.enabled=_ready;
+        _fontFamily,_fullWidth,_punctuation,_fuzzy,_resetAppearance,_expandCandidates,_autoEnglish,_debugMode]) control.enabled=_ready;
     _decimalPeriod.enabled=_ready && _punctuation.state!=0;
     [self updatePunctuationControls];
     for(NSButton *control in _shortcutEnabled) control.enabled=_ready;
@@ -591,7 +594,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     state.scheme=(uint8_t)_scheme.indexOfSelectedItem; state.dictionary=(uint8_t)_dictionary.indexOfSelectedItem;
     state.pageKeys=(uint8_t)_pageKeys.indexOfSelectedItem; state.completionKey=(uint8_t)_completionKey.indexOfSelectedItem;
     state.pageSize=(uint8_t)(_pageSize.indexOfSelectedItem+3);
-    state.flags=(_fullWidth.state?1:0)|(_punctuation.state?2:0)|(_fuzzy.state?4:0)|(_expandCandidates.state?16:0)|(_decimalPeriod.state?32:0)|(_state.flags&8); state.fuzzy=0;
+    state.flags=(_fullWidth.state?1:0)|(_punctuation.state?2:0)|(_fuzzy.state?4:0)|(_debugMode.state?8:0)|(_expandCandidates.state?16:0)|(_decimalPeriod.state?32:0); state.fuzzy=0;
     for(NSUInteger i=0;i<_rules.count;++i) if(_rules[i].state) state.fuzzy|=1<<i;
     for(int i=0;i<5;++i) {
         if(_shortcuts[i].recording) { _status.stringValue=@"请先完成快捷键录制，或按 Esc 取消。"; return NO; }

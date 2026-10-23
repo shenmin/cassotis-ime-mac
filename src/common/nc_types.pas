@@ -177,6 +177,17 @@ type
     end;
     TncCandidatePages = TArray<TncCandidatePage>;
 
+    // Where the text before the input that ranks the candidates comes from
+    // (shown in debug mode): a prefix of this input already chosen, the text
+    // before the caret that the application reports, or text this session
+    // committed.
+    TncLeftContextSource = (
+        lcs_none,
+        lcs_segment,
+        lcs_document,
+        lcs_session
+    );
+
     TncOneKeyCompletionSource = (
         okcs_none,
         okcs_user_exact,
@@ -365,6 +376,10 @@ type
         raw_input_selected: Boolean;
         completion_text: string;
         completion_source: TncOneKeyCompletionSource;
+        debug_context_enabled: Boolean;
+        debug_context_text: string;
+        debug_context_source: TncLeftContextSource;
+        debug_context_reported: Boolean;
         error_code: Cardinal;
         error_text: string;
     end;
@@ -463,6 +478,10 @@ begin
     value.commit_text := '';
     value.preedit_text := '';
     value.preedit_warnings := nil;
+    value.debug_context_enabled := False;
+    value.debug_context_text := '';
+    value.debug_context_source := lcs_none;
+    value.debug_context_reported := False;
     value.query_text := '';
     SetLength(value.candidates, 0);
     value.selected_index := -1;

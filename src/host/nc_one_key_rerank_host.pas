@@ -6,10 +6,11 @@ unit nc_one_key_rerank_host;
 
 interface
 
-uses Classes, SyncObjs, nc_char_lm, nc_engine_intf;
+uses Classes, SyncObjs, nc_types, nc_char_lm, nc_engine_intf;
 
 type
     TncOneKeyRerankTask = record
+        dictionary_variant: TncDictionaryVariant;
         context_id, context_instance_id, generation_id: QWord;
         request: TncOneKeyRerankRequest;
     end;
@@ -52,7 +53,7 @@ type
 
 implementation
 
-uses SysUtils;
+uses SysUtils, nc_char_lm_traditional;
 
 constructor TncOneKeyRerankWorker.Create(const owner: TncOneKeyRerankHost);
 begin
@@ -111,6 +112,7 @@ procedure TncOneKeyRerankHost.WorkerExecute;
 var
     finished: TncOneKeyRerankFinished;
     available: Boolean;
+    model: IncCharLm;
 begin
     while not FWorker.Terminated do
     begin
@@ -134,7 +136,10 @@ begin
         end;
         finished.chosen := finished.task.request.incumbent;
         try
-            finished.changed := nc_char_lm_choose_completion(FModel,
+            model := FModel;
+            if finished.task.dictionary_variant = dv_traditional then
+                model := nc_traditional_char_lm(model);
+            finished.changed := nc_char_lm_choose_completion(model,
                 finished.task.request.context, finished.task.request.candidates,
                 finished.task.request.incumbent, finished.task.request.typed_units,
                 finished.chosen) and (finished.chosen <> finished.task.request.incumbent);

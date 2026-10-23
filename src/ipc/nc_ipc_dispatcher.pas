@@ -85,7 +85,7 @@ end;
 procedure TncIpcDispatcher.DispatchRequest(const request: TncIpcEnvelope;
     out response: TncIpcEnvelope);
 var
-    active, include_custom_phrases: Boolean;
+    active, include_custom_phrases, surrounding_reported: Boolean;
     surrounding_text: string;
     cursor_offset: Integer;
     candidate_index, page_index: Integer;
@@ -169,14 +169,14 @@ begin
         imt_set_surrounding:
             begin
                 if not nc_try_decode_surrounding_payload(request.payload,
-                    surrounding_text, cursor_offset, payload_error) then
+                    surrounding_text, cursor_offset, surrounding_reported, payload_error) then
                 begin
                     SetErrorResponse(request, response,
                         c_ipc_dispatch_error_invalid_payload, payload_error);
                     Exit;
                 end;
                 operation_succeeded := FEngine.SetSurrounding(request.context_id,
-                    surrounding_text, cursor_offset, request.generation_id);
+                    surrounding_text, cursor_offset, request.generation_id, surrounding_reported);
                 if not operation_succeeded then
                     SetErrorResponse(request, response,
                         c_ipc_dispatch_error_operation_failed,

@@ -81,7 +81,7 @@ type
         function SetActive(const context_id: QWord; const active: Boolean;
             const generation_id: QWord): Boolean; override;
         function SetSurrounding(const context_id: QWord; const text: string;
-            const cursor_offset: Integer; const generation_id: QWord): Boolean;
+            const cursor_offset: Integer; const generation_id: QWord; const reported: Boolean = True): Boolean;
             override;
         function GetState(out state: TncEngineState): Boolean; override;
         function SetState(const state: TncEngineState): Boolean; override;
@@ -599,6 +599,20 @@ begin
     engine_result.candidate_revision := context.CandidateRevision;
     engine_result.completion_text := context.CompletionText;
     engine_result.completion_source := context.CompletionSource;
+    // Snapshot the context on the engine thread with these candidates. Input
+    // text is sent for the opt-in debug display only, never to runtime logs.
+    engine_result.debug_context_enabled := FEngine.config.debug_mode;
+    if engine_result.debug_context_enabled then
+        engine_result.debug_context_text := FEngine.get_ranking_left_context(
+            engine_result.debug_context_source, engine_result.debug_context_reported);
+    if engine_result.debug_context_enabled then
+        engine_result.debug_context_reported := context.SurroundingReported
+    else
+    begin
+        engine_result.debug_context_text := '';
+        engine_result.debug_context_source := lcs_none;
+        engine_result.debug_context_reported := False;
+    end;
 end;
 
 function TncEngineService.QueueLongNeuralCompletion(
@@ -612,6 +626,7 @@ begin
         (context.Composition = '') then
         Exit;
     task := Default(TncLocalCompletionTask);
+    task.dictionary_variant := FConfig.dictionary_variant;
     if not FEngine.get_long_neural_completion_request(task.request) then
         Exit;
     task.context_id := context.Id;
@@ -627,6 +642,7 @@ begin
     if (context = nil) or (FEngine = nil) or (FOneKeyRerankHost = nil) or
         not context.Active or (context.Composition = '') then Exit;
     task := Default(TncOneKeyRerankTask);
+    task.dictionary_variant := FConfig.dictionary_variant;
     if not FEngine.get_one_key_rerank_request(task.request) then Exit;
     task.context_id := context.Id;
     task.context_instance_id := context.InstanceId;
@@ -738,14 +754,14 @@ end;
 
 function TncEngineService.SetSurrounding(const context_id: QWord;
     const text: string; const cursor_offset: Integer;
-    const generation_id: QWord): Boolean;
+    const generation_id: QWord; const reported: Boolean): Boolean;
 var
     context: TncEngineContext;
 begin
     Result := PrepareContext(context_id, generation_id, context) = 0;
     if not Result then
         Exit;
-    context.SetSurrounding(text, cursor_offset);
+    context.SetSurrounding(text, cursor_offset, reported);
     if FLoadedContextId = context_id then
         SetEngineLeftContext(context);
 end;

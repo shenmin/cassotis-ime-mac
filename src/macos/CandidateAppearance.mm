@@ -114,6 +114,8 @@ CassotisCandidateColors CassotisColors(NSInteger theme, NSAppearance *appearance
 @property(nonatomic, strong) NSTextField *warning;
 @property(nonatomic, strong) NSImageView *logo;
 @property(nonatomic, strong) NSTextField *version;
+@property(nonatomic, strong) NSTextField *debugLabel;
+@property(nonatomic, strong) NSTextField *debugText;
 @end
 @implementation CassotisCandidateContent
 - (NSSize)intrinsicContentSize { return self.preferredSize; }
@@ -169,7 +171,25 @@ CassotisCandidateColors CassotisColors(NSInteger theme, NSAppearance *appearance
         self.warning.frame=NSMakeRect(0,floor((self.rowHeight-height)/2),warningWidth,height);
         completionX=MIN(textWidth,warningWidth+12);
     }
-    self.completion.frame=NSMakeRect(completionX,0,MAX(0,textWidth-completionX),self.rowHeight);
+    CGFloat completionWidth=MAX(0,textWidth-completionX);
+    if(self.debugLabel) completionWidth=MIN(completionWidth,ceil(self.completion.intrinsicContentSize.width));
+    self.completion.frame=NSMakeRect(completionX,0,completionWidth,self.rowHeight);
+    if(self.debugLabel) {
+        CGFloat left=completionX+(self.completion.enabled?completionWidth+12:0);
+        CGFloat labelWidth=ceil(self.debugLabel.intrinsicContentSize.width),available=MAX(0,inner-left);
+        self.debugLabel.hidden=available<labelWidth;
+        self.debugText.hidden=self.debugLabel.hidden;
+        // A head-truncating label's intrinsic width omits the cell's text
+        // insets: even two characters can become an ellipsis at that width.
+        CGFloat naturalBodyWidth=self.debugText.stringValue.length?
+            ceil([self.debugText.stringValue sizeWithAttributes:@{NSFontAttributeName:self.debugText.font}].width)+4:0;
+        CGFloat bodyWidth=MIN(naturalBodyWidth,MAX(0,available-labelWidth-5));
+        CGFloat bodyHeight=MIN(self.rowHeight,self.debugText.intrinsicContentSize.height);
+        CGFloat labelHeight=MIN(self.rowHeight,self.debugLabel.intrinsicContentSize.height);
+        self.debugText.frame=NSMakeRect(inner-bodyWidth,floor((self.rowHeight-bodyHeight)/2),bodyWidth,bodyHeight);
+        self.debugLabel.frame=NSMakeRect(inner-bodyWidth-(bodyWidth>0?5:0)-labelWidth,
+            floor((self.rowHeight-labelHeight)/2),labelWidth,labelHeight);
+    }
 }
 @end
 
@@ -346,6 +366,29 @@ NSView *CassotisCandidateView(const cassotis::Result &r, CGFloat size, NSString 
     NSTextField *version=[NSTextField labelWithString:[NSString stringWithFormat:@"(v%@)",CassotisDisplayVersion()]];
     version.font=[NSFont systemFontOfSize:11]; version.textColor=colors.muted;
     version.accessibilityIdentifier=@"candidate-version"; [footer addSubview:version]; background.version=version;
+    if(r.debugContextEnabled) {
+        NSString *label;
+        switch(r.debugContextSource) {
+            case cassotis::LeftContextSource::Segment: label=@"已选"; break;
+            case cassotis::LeftContextSource::Document: label=@"文档"; break;
+            case cassotis::LeftContextSource::Session: label=@"上屏"; break;
+            default: label=r.debugContextReported?@"上文为空":@"未读到上文"; break;
+        }
+        NSString *body=[[str(r.debugContext) componentsSeparatedByCharactersInSet:NSCharacterSet.controlCharacterSet]
+            componentsJoinedByString:@" "];
+        NSTextField *contextLabel=[NSTextField labelWithString:label];
+        contextLabel.font=version.font; contextLabel.textColor=colors.muted;
+        contextLabel.accessibilityIdentifier=@"candidate-debug-context-source";
+        NSTextField *contextText=[NSTextField labelWithString:body];
+        contextText.font=version.font; contextText.textColor=colors.text;
+        contextText.alignment=NSTextAlignmentRight; contextText.lineBreakMode=NSLineBreakByTruncatingHead;
+        contextText.cell.usesSingleLineMode=YES;
+        contextText.accessibilityIdentifier=@"candidate-debug-context";
+        contextText.accessibilityLabel=body;
+        [footer addSubview:contextLabel]; [footer addSubview:contextText];
+        background.debugLabel=contextLabel; background.debugText=contextText;
+        image.hidden=YES; version.hidden=YES;
+    }
     NSView *separator=[[NSView alloc] init]; separator.wantsLayer=YES; separator.layer.backgroundColor=colors.border.CGColor;
     [background addSubview:separator]; background.separator=separator;
     CGFloat footerWidth=completion.intrinsicContentSize.width+12+20+5+ceil(version.intrinsicContentSize.width);
