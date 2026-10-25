@@ -86,6 +86,7 @@ type
         function GetState(out state: TncEngineState): Boolean; override;
         function SetState(const state: TncEngineState): Boolean; override;
         function ClearUserDictionary: Boolean; override;
+        function ImportUserWords(const path: string; out entries, imported: Integer): Boolean; override;
         function ProcessKey(const context_id: QWord; const generation_id: QWord;
             const key_event: TncKeyEvent): TncEngineResult; override;
         function PollResult(const context_id: QWord;
@@ -540,6 +541,7 @@ begin
     context.SelectCandidate(FEngine.get_selected_index);
     completion := FEngine.get_one_key_completion;
     context.SetCompletion(completion.full_pinyin, completion.text, completion.source);
+    context.LearnedCandidatesInvalid := False;
 end;
 
 procedure TncEngineService.PopulateResult(const context: TncEngineContext;
@@ -845,6 +847,21 @@ begin
     Result := True;
 end;
 
+function TncEngineService.ImportUserWords(const path: string; out entries, imported: Integer): Boolean;
+begin
+    entries := 0; imported := 0;
+    try
+        Result := (FEngine <> nil) and FEngine.import_user_words(path, entries, imported);
+    except
+        entries := 0; imported := 0; Result := False;
+    end;
+    if not Result or (imported = 0) then Exit;
+    FContexts.InvalidateLearnedCandidates;
+    FLoadedContextId := c_invalid_context_id;
+    FEngine.end_document;
+    FEngine.Reset;
+end;
+
 function TncEngineService.ClearUserDictionary: Boolean;
 begin
     Result := (FEngine <> nil) and FEngine.clear_user_dictionary;
@@ -1044,6 +1061,11 @@ begin
     if (context = nil) or (context.Generation <> generation_id) or
         not context.Active then Exit;
     delivered := False;
+    if context.LearnedCandidatesInvalid then
+    begin
+        if not ActivateContext(context) then Exit;
+        delivered := True;
+    end;
     if (FLocalCompletionHost <> nil) and
         FLocalCompletionHost.TryPopFinishedFor(context_id, finished) and
         (finished.task.context_instance_id = context.InstanceId) and

@@ -24,6 +24,13 @@ type
 
     TncIpcEngineState = TncEngineState;
 
+function nc_encode_import_user_words_payload(const path: string): TBytes;
+function nc_try_decode_import_user_words_payload(const payload: TBytes;
+    out path, error_text: string): Boolean;
+function nc_encode_import_user_words_result(const entries, imported: Integer): TBytes;
+function nc_try_decode_import_user_words_result(const payload: TBytes;
+    out entries, imported: Integer; out error_text: string): Boolean;
+
 function nc_encode_set_active_payload(const active: Boolean): TBytes;
 function nc_try_decode_set_active_payload(const payload: TBytes;
     out active: Boolean; out error_text: string): Boolean;
@@ -517,6 +524,61 @@ begin
         Result := High(Cardinal)
     else
         Result := (Cardinal(1) shl (highest_ordinal + 1)) - 1;
+end;
+
+function nc_encode_import_user_words_payload(const path: string): TBytes;
+var writer: TncIpcPayloadWriter;
+begin
+    if (path = '') or (path[1] <> '/') or (Pos(#0, path) > 0) then
+        raise EncIpcPayloadError.Create('Import path must be an absolute file path');
+    writer := TncIpcPayloadWriter.Create;
+    try
+        WritePayloadHeader(writer); writer.WriteString(path); Result := writer.Finish;
+    finally writer.Free; end;
+end;
+
+function nc_try_decode_import_user_words_payload(const payload: TBytes;
+    out path, error_text: string): Boolean;
+var reader: TncIpcPayloadReader;
+begin
+    path := '';
+    reader := TncIpcPayloadReader.Create(payload);
+    try
+        Result := ReadPayloadHeader(reader) and reader.ReadString(path);
+        if Result and ((path = '') or (path[1] <> '/') or (Pos(#0, path) > 0)) then
+        begin
+            reader.SetError('Import path must be an absolute file path'); Result := False;
+        end;
+        Result := reader.Finish(error_text) and Result;
+        if not Result then path := '';
+    finally reader.Free; end;
+end;
+
+function nc_encode_import_user_words_result(const entries, imported: Integer): TBytes;
+var writer: TncIpcPayloadWriter;
+begin
+    if (entries < 0) or (imported < 0) or (imported > entries) then
+        raise EncIpcPayloadError.Create('Invalid import counts');
+    writer := TncIpcPayloadWriter.Create;
+    try
+        WritePayloadHeader(writer); writer.WriteInt32(entries); writer.WriteInt32(imported);
+        Result := writer.Finish;
+    finally writer.Free; end;
+end;
+
+function nc_try_decode_import_user_words_result(const payload: TBytes;
+    out entries, imported: Integer; out error_text: string): Boolean;
+var reader: TncIpcPayloadReader;
+begin
+    entries := 0; imported := 0;
+    reader := TncIpcPayloadReader.Create(payload);
+    try
+        Result := ReadPayloadHeader(reader) and reader.ReadInt32(entries) and reader.ReadInt32(imported);
+        if Result and ((entries < 0) or (imported < 0) or (imported > entries)) then
+        begin reader.SetError('Invalid import counts'); Result := False; end;
+        Result := reader.Finish(error_text) and Result;
+        if not Result then begin entries := 0; imported := 0; end;
+    finally reader.Free; end;
 end;
 
 function nc_encode_set_active_payload(const active: Boolean): TBytes;

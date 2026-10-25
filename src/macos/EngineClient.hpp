@@ -62,6 +62,8 @@ struct Key {
     std::string text;
 };
 struct Shortcut { uint16_t key = 0; uint8_t modifiers = 0; bool disabled = false; };
+struct UserWordImportResult { uint32_t entries = 0, imported = 0; };
+UserWordImportResult decodeUserWordImportResult(const Bytes &data);
 struct CustomPhrase { std::string shortcut, text; };
 struct State {
     uint8_t mode = 0, dictionary = 0, scheme = 0, flags = 34;
@@ -104,5 +106,6 @@ public:
     State state(bool includeCustomPhrases = true);
     void setState(const State &state);
     void clearLearning();
+    UserWordImportResult importUserWords(const std::string &path);
 };
 }

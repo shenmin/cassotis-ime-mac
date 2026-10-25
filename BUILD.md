@@ -10,7 +10,7 @@
 ./scripts/check_environment.sh
 ```
 
-词库是独立的 [Cassotis Lexicon](https://github.com/shenmin/cassotis-lexicon) 项目。检出其正式发布的 `v2.3.0` 标签后，用环境变量指定位置，无需放在固定目录或本仓库旁边。构建会按 `data/lexicon-inputs.json` 核对输入：
+词库是独立的 [Cassotis Lexicon](https://github.com/shenmin/cassotis-lexicon) 项目。检出其正式发布的 `v2.4.0` 标签后，用环境变量指定位置，无需放在固定目录或本仓库旁边。构建会按 `data/lexicon-inputs.json` 核对输入：
 
 ```sh
 export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"

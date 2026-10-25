@@ -88,7 +88,8 @@ var
     active, include_custom_phrases, surrounding_reported: Boolean;
     surrounding_text: string;
     cursor_offset: Integer;
-    candidate_index, page_index: Integer;
+    candidate_index, page_index, import_entries, import_count: Integer;
+    import_path: string;
     revision: QWord;
     remove: Boolean;
     expected_query, expected_text, expected_comment: string;
@@ -293,6 +294,19 @@ begin
                 if not RequireEmptyPayload(request, response) then
                     Exit;
                 FShutdownRequested := True;
+            end;
+        imt_import_user_words:
+            begin
+                if not nc_try_decode_import_user_words_payload(request.payload, import_path, payload_error) then
+                begin
+                    SetErrorResponse(request, response, c_ipc_dispatch_error_invalid_payload, payload_error);
+                    Exit;
+                end;
+                if not FEngine.ImportUserWords(import_path, import_entries, import_count) then
+                    SetErrorResponse(request, response, c_ipc_dispatch_error_operation_failed,
+                        'Unable to import word frequencies')
+                else
+                    response.payload := nc_encode_import_user_words_result(import_entries, import_count);
             end;
         imt_clear_user_dictionary:
             begin

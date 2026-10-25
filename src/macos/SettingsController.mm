@@ -5,6 +5,7 @@
 #import "ShortcutRecorder.h"
 #import "RuntimeLog.h"
 #import "CustomPhraseEditor.h"
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 @interface CassotisSettingsDocument : NSView
 @end
@@ -67,6 +68,8 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     NSSlider *_fontSize;
     NSTextField *_fontSizeLabel, *_status, *_punctuationSymbols;
     NSButton *_fullWidth, *_punctuation, *_decimalPeriod, *_fuzzy, *_retry, *_resetAppearance, *_logging, *_debugMode, *_expandCandidates, *_rememberMode, *_autoEnglish;
+    NSButton *_importWords, *_clearLearning;
+    BOOL _importing;
     NSComboBox *_fontFamily;
     NSArray<NSString *> *_fontFamilies;
     NSMutableArray<NSButton *> *_rules, *_shortcutEnabled;
@@ -312,13 +315,16 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     _logging.action=@selector(loggingChanged:);
     _debugMode=[self check:@"启用调试模式" identifier:@"debug-mode"];
     NSButton *config=[NSButton buttonWithTitle:@"打开配置文件夹" target:self action:@selector(openConfig:)];
-    NSButton *clear=[NSButton buttonWithTitle:@"清除学习记录…" target:self action:@selector(clear:)];
+    _clearLearning=[NSButton buttonWithTitle:@"清除学习记录…" target:self action:@selector(clear:)];
+    _clearLearning.accessibilityIdentifier=@"clear-learning";
+    _importWords=[NSButton buttonWithTitle:@"导入输入频次…" target:self action:@selector(importWords:)];
+    _importWords.accessibilityIdentifier=@"import-word-frequencies";
     [self section:@"高级" views:@[[self card:@[_logging,
         [self hint:@"默认关闭。开启后记录启动和运行诊断，开关立即生效并自动保存，不中断输入。关闭后停止写入，已有日志保留。每份日志最多 2 MB，保留上一份记录。"],
         [self row:@"运行日志" control:logs]]],
         [self card:@[_debugMode,[self hint:@"在候选栏右下角显示参与排序的上文及其来源。默认关闭，用于排查选词问题；此开关不启用日志。"]]],
-        [self card:@[[self row:@"配置工具" control:config],[self row:@"用户词语与学习" control:clear]]],
-        [self hint:@"所有词库学习和模型推理均在本机进行。清除学习记录不会更改设置、自定义短语或基础词库。"]]];
+        [self card:@[[self row:@"配置工具" control:config],[self row:@"导入选词习惯" control:_importWords],[self row:@"用户词语与学习" control:_clearLearning]]],
+        [self hint:@"所有词库学习和模型推理均在本机进行。可以导入其他输入法导出的词语和使用次数。清除学习记录会同时删除导入的频次，不会更改设置、自定义短语或基础词库。"]]];
 
     NSView *padding=[[NSView alloc] init]; _endPadding=[padding.heightAnchor constraintEqualToConstant:300]; _endPadding.active=YES;
     NSMutableArray *contents=[_sections mutableCopy]; [contents addObject:padding];
@@ -565,6 +571,8 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     for(NSButton *control in _rules) control.enabled=_ready && _fuzzy.state!=0;
     for(NSUInteger i=0;i<_shortcuts.count;++i) _shortcuts[i].enabled=_ready && _shortcutEnabled[i].state!=0;
     _customPhrases.enabled=_ready;
+    _importWords.enabled=_ready && !_importing;
+    _clearLearning.enabled=_ready && !_importing;
     _retry.hidden=_ready; _retry.enabled=!_ready;
     [self.window.contentView layoutSubtreeIfNeeded];
     [self windowDidResize:[NSNotification notificationWithName:NSWindowDidResizeNotification object:self.window]];
@@ -639,9 +647,57 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
 - (void)openWebsite:(id)sender { (void)sender; [NSWorkspace.sharedWorkspace openURL:CassotisWebsiteURL()]; }
 - (void)openLogs:(id)sender { (void)sender; [self openDirectory:@"Library/Logs/CassotisIME"]; }
 - (void)openConfig:(id)sender { (void)sender; [self openDirectory:@"Library/Application Support/CassotisIME"]; }
+- (void)startWordImport:(NSURL *)url {
+    if(_importing || !_ready || !url.isFileURL) return;
+    _importing=YES; _importWords.enabled=NO; _clearLearning.enabled=NO;
+    _status.stringValue=@"正在导入输入频次…";
+    // A bulk import may take several seconds. Keep the settings window and
+    // its confirmation responsive without extending normal key deadlines.
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0),^{
+        NSString *message=nil;
+        BOOL accessed=[url startAccessingSecurityScopedResource];
+        try {
+            cassotis::EngineClient engine;
+            if(!engine.connect(CassotisSocketPath().UTF8String)) throw std::runtime_error("引擎暂不可用，请稍后重试。");
+            auto result=engine.importUserWords(url.path.UTF8String);
+            if(result.imported)
+                message=[NSString stringWithFormat:@"已导入 %u 个词（文件中共 %u 个），并已立即生效。",result.imported,result.entries];
+            else message=@"没有导入词语。请检查词语和完整拼音是否匹配。";
+        } catch(const std::exception &) {
+            message=@"导入未完成。请检查文件编码、格式及大小（最多 32 MB），并确认输入法服务可用。导入耗时较长时请先检查结果，避免重复导入。";
+        }
+        if(accessed) [url stopAccessingSecurityScopedResource];
+        dispatch_async(dispatch_get_main_queue(),^{
+            self->_importing=NO; self->_importWords.enabled=self->_ready; self->_clearLearning.enabled=self->_ready;
+            self->_status.stringValue=message;
+        });
+    });
+}
+- (void)importWords:(id)sender {
+    (void)sender; if(_importing || !_ready) return;
+    NSAlert *alert=[[NSAlert alloc] init]; alert.alertStyle=NSAlertStyleWarning;
+    alert.messageText=@"导入其他输入法的输入频次？";
+    alert.informativeText=@"把文件里的词按使用次数记入用户词库，当作你自己的选词习惯，只影响本机。\n\n"
+        @"文本文件每行一个词：词、完整拼音、次数，用逗号或 Tab 分隔，次数可以省略。例如：\n\n"
+        @"知识,zhishi,120\n哪些,naxie,86\n输入法,shurufa\n\n"
+        @"支持 UTF-8、带编码标记的 UTF-16 和 GBK 编码，最多 32 MB。\n\n"
+        @"批量导入可能让人名、昵称、打错的词或已不用的旧词排到同音常用词前面。请先检查文件内容。\n\n"
+        @"导入不能单独撤销。“清除学习记录”会将导入的频次和平时打字积累的学习记录一起删除。";
+    [alert addButtonWithTitle:@"取消"]; [alert addButtonWithTitle:@"继续选择文件…"];
+    [alert beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse response) {
+        if(response!=NSAlertSecondButtonReturn) return;
+        NSOpenPanel *panel=NSOpenPanel.openPanel; panel.title=@"选择词频文件";
+        panel.canChooseDirectories=NO; panel.allowsMultipleSelection=NO;
+        panel.allowedContentTypes=@[UTTypePlainText,UTTypeCommaSeparatedText,UTTypeTabSeparatedText];
+        panel.allowsOtherFileTypes=YES;
+        [panel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse selected) {
+            if(selected==NSModalResponseOK) [self startWordImport:panel.URL];
+        }];
+    }];
+}
 - (void)clear:(id)sender {
-    (void)sender; NSAlert *alert=[[NSAlert alloc] init]; alert.messageText=@"清除用户词语和学习记录？";
-    alert.informativeText=@"此操作不会删除基础词库或更改设置。";
+    (void)sender; if(_importing || !_ready) return; NSAlert *alert=[[NSAlert alloc] init]; alert.messageText=@"清除用户词语和学习记录？";
+    alert.informativeText=@"将删除所有本地用户词语、选词习惯和补全学习记录，包括导入的输入频次，且无法撤销。基础词库、设置和自定义短语会保留。";
     [alert addButtonWithTitle:@"取消"]; [alert addButtonWithTitle:@"清除"];
     [alert beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse response) {
         if(response!=NSAlertSecondButtonReturn) return;

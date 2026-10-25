@@ -39,7 +39,7 @@ type
         FModifierShortcutAction: TncShortcutAction;
         FModifierShortcutKeyCode: Word;
     public
-        LongCompletionPending, OneKeyRerankPending: Boolean;
+        LongCompletionPending, OneKeyRerankPending, LearnedCandidatesInvalid: Boolean;
         constructor Create(const context_id: QWord);
         function AdvanceGeneration(const generation_id: QWord): Boolean;
         procedure Reset;
@@ -101,6 +101,7 @@ type
         function Find(const context_id: QWord): TncEngineContext;
         procedure Clear;
         procedure ClearCompositions;
+        procedure InvalidateLearnedCandidates;
         function Count: Integer;
     end;
 
@@ -144,6 +145,7 @@ end;
 
 procedure TncEngineContext.ClearComposition;
 begin
+    LearnedCandidatesInvalid := False;
     LongCompletionPending := False;
     OneKeyRerankPending := False;
     FComposition := '';
@@ -383,6 +385,22 @@ var
 begin
     for index := 0 to FItems.Count - 1 do
         TncEngineContext(FItems[index]).ClearComposition;
+end;
+
+procedure TncEngineContextRegistry.InvalidateLearnedCandidates;
+var index: Integer; context: TncEngineContext; composition: string; quick: Boolean;
+begin
+    for index := 0 to FItems.Count - 1 do
+    begin
+        context := TncEngineContext(FItems[index]);
+        composition := context.Composition; quick := context.QuickInputExplicitEntry;
+        context.ClearComposition;
+        context.SetComposition(composition); context.QuickInputExplicitEntry := quick;
+        // Neither a queued model result nor a click on the old candidate page
+        // may survive a change in the shared learning database.
+        Inc(NextContextInstance); context.FInstanceId := NextContextInstance;
+        context.LearnedCandidatesInvalid := True;
+    end;
 end;
 
 function TncEngineContextRegistry.Count: Integer;

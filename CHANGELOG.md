@@ -2,14 +2,17 @@
 
 ## 2.1.0 (build 5, unreleased)
 
+- Import input frequencies from other input methods in Advanced, using comma/Tab-separated text or Windows statistics exports. Show the format and ranking effects before file selection; support UTF-8, BOM-marked UTF-16 and GBK, and report committed entries without blocking the settings window.
+- Preserve a common first choice when a no-context language-model replacement has much weaker general-corpus support; consider unfinished phrases without an assumed final comma.
+- Clear long-sentence Tab learning together with other learned preferences, including imported frequencies; keep settings and explicit custom phrases.
 - Improve three-to-five-syllable phrases: retain a word whose final syllable is still being typed, consider another valid syllable count, and avoid carrying a generated phrase into the next key as a word prefix.
 - Score every new correction against the language model, suppress weak single-character combinations and near-duplicates, and keep secondary phrases close to the first candidate's score.
 - Match prefixes against canonical Pinyin readings. Longer words that require untyped syllables remain in Tab completion; a uniquely split dictionary key can provide a word's own polyphonic reading.
 - Keep general completions ahead of unsupported specialist words, avoid completions that misread the typed keys, and improve the language-model scoring of Tab continuations.
 - Improve traditional Chinese ranking and completion by scoring simplified equivalents while preserving Taiwan traditional forms in candidates, pages, commits and background completions. Handle 著 according to its use as a particle or in words such as 著名.
 - Add an automatically saved debug-mode option in Advanced. Show the ranking context and its source in the candidate footer, keeping the latest text visible without resizing the panel; logging remains separately controlled and off by default.
-- Update to Cassotis Lexicon v2.3.0, with everyday expressions, reading corrections, Taiwan character forms and exact-only recall for rare specialist catalogue terms. The shared neural model remains unchanged.
-- Align the engine with Windows v2.3.0. Keep the model's new queried-character interface compatible with macOS UTF-16, foreground/background scheduling and older runtime fallback.
+- Update to Cassotis Lexicon v2.4.0, with everyday expressions, reading corrections, Taiwan character forms and exact-only recall for rare specialist catalogue terms. The shared neural model remains unchanged.
+- Align the engine with Windows v2.4.0. Keep the model's new queried-character interface compatible with macOS UTF-16, foreground/background scheduling and older runtime fallback.
 - Preserve custom phrases exactly in traditional mode, and retain a valid draft when a correction fails Pinyin validation.
 
 ## 2.0.0 (build 4, 2026-10-17)

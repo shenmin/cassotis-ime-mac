@@ -275,4 +275,17 @@ void EngineClient::setState(const State &s) {
     transact(13,payload,payload.size()>1024*1024?5000:1000);
 }
 void EngineClient::clearLearning() { transact(16,{}); }
+UserWordImportResult decodeUserWordImportResult(const Bytes &data) {
+    Reader r(data); require(r.schema()==1,"Invalid import result schema");
+    UserWordImportResult result{r.u32(),r.u32()}; r.end();
+    require(result.entries<=INT32_MAX && result.imported<=result.entries,"Invalid import counts");
+    return result;
+}
+UserWordImportResult EngineClient::importUserWords(const std::string &path) {
+    require(!path.empty() && path.front()=='/' && path.find('\0')==std::string::npos,"Invalid import file path");
+    Writer w; w.schema(); w.string(path);
+    // Bulk import has its own deadline; normal keystrokes remain bounded to 1 s.
+    try { return decodeUserWordImportResult(transact(20,w.data,10000)); }
+    catch(...) { disconnect(); throw; }
+}
 }
