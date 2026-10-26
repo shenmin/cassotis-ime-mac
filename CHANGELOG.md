@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.1.0 (build 5, unreleased)
+## 2.1.0 (build 5, 2026-10-26)
 
 - Import input frequencies from other input methods in Advanced, using comma/Tab-separated text or Windows statistics exports. Show the format and ranking effects before file selection; support UTF-8, BOM-marked UTF-16 and GBK, and report committed entries without blocking the settings window.
 - Preserve a common first choice when a no-context language-model replacement has much weaker general-corpus support; consider unfinished phrases without an assumed final comma.

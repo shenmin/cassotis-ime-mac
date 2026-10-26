@@ -18,7 +18,7 @@
 
 Cassotis IME macOS 版（言泉输入法 macOS 版）是一个面向 Apple 芯片 Mac 的实验性中文拼音输入法。原生的 InputMethodKit / AppKit 前端与一个用 Free Pascal 编写的独立引擎进程通信；引擎移植自 [Cassotis IME Windows 版](https://github.com/shenmin/cassotis-ime)，词库由 [Cassotis Lexicon](https://github.com/shenmin/cassotis-lexicon) 生成。候选排序全部在本机 CPU 上完成，核心是一个由本项目训练的字符级语言模型。
 
-正在准备发布的 macOS 2.1.0（build 5）对标 Cassotis IME 与 Cassotis Lexicon v2.4.0：引擎和词库跟进已发布的 v2.4.0 标签；语言模型和紧凑排序单元继续与 Windows 版共享。它支持 Apple 芯片和 macOS 14 及以上。已验证的环境和已知限制见 [COMPATIBILITY.md](COMPATIBILITY.md)，产品介绍见[官网](https://www.yanquan.org/mac)。
+macOS 2.1.0（build 5）对标 Cassotis IME 与 Cassotis Lexicon v2.4.0：引擎和词库跟进已发布的 v2.4.0 标签；语言模型和紧凑排序单元继续与 Windows 版共享。它支持 Apple 芯片和 macOS 14 及以上。已验证的环境和已知限制见 [COMPATIBILITY.md](COMPATIBILITY.md)，产品介绍见[官网](https://www.yanquan.org/mac)。
 
 项目当前重点：
 - 与 Windows 版的每个版本保持对齐，并在同一套基准上核对；
