@@ -7,6 +7,7 @@ NSString *CassotisShortcutValidationError(const cassotis::Shortcut &shortcut);
 
 @interface CassotisShortcutRecorder : NSControl
 @property(nonatomic) cassotis::Shortcut shortcut;
+@property(nonatomic) BOOL allowsCapsLock;
 @property(nonatomic, readonly) NSString *displayString;
 @property(nonatomic, readonly) BOOL recording;
 @property(nonatomic, copy) void (^validationMessage)(NSString *message);

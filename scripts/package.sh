@@ -36,6 +36,12 @@ codesign --verify --deep --strict "$app"
     echo 'Application version/build differs; rebuild the app before packaging.' >&2; exit 1;
 }
 [[ "$("$app/Contents/MacOS/cassotis-engine" --version)" == "$version" ]] || { echo 'Engine version mismatch.' >&2; exit 1; }
+for variant in sc tc; do
+    for required in short-promotion word-frequency; do
+        "$root/build/$arch/bin/cassotis-dict-init" "$app/Contents/Resources/dictionaries/dict_$variant.db" \
+            "$root/data/schema.sql" "--require-$required"
+    done
+done
 mkdir -p "$root/dist"
 stage="$(mktemp -d "$root/build/package.XXXXXX")"
 archive_partial=''

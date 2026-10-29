@@ -1,5 +1,6 @@
 #import <AppKit/AppKit.h>
 #import <InputMethodKit/InputMethodKit.h>
+#import <Carbon/Carbon.h>
 #import <os/log.h>
 #import "InputSession.h"
 #import "SettingsController.h"
@@ -80,11 +81,18 @@ static void CassotisShowAboutPanel(void) {
 @property(nonatomic, strong) IMKServer *server;
 @end
 @implementation CassotisAppDelegate
+- (void)inputSourceChanged:(NSNotification *)notification {
+    (void)notification;
+    CassotisInputSourceDidChange();
+}
 - (void)applicationWillTerminate:(NSNotification *)notification {
     (void)notification; CassotisStopEngine();
 }
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     (void)notification; CassotisStartEngine();
+    [NSDistributedNotificationCenter.defaultCenter addObserver:self selector:@selector(inputSourceChanged:)
+        name:(__bridge NSString *)kTISNotifySelectedKeyboardInputSourceChanged object:nil];
+    [self inputSourceChanged:nil];
     if([NSProcessInfo.processInfo.arguments containsObject:@"--settings"])
         [CassotisSettingsController.shared showWindow:nil];
     else if([NSProcessInfo.processInfo.arguments containsObject:@"--about"])

@@ -68,7 +68,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     NSSlider *_fontSize;
     NSTextField *_fontSizeLabel, *_status, *_punctuationSymbols;
     NSButton *_fullWidth, *_punctuation, *_decimalPeriod, *_fuzzy, *_retry, *_resetAppearance, *_logging, *_debugMode, *_expandCandidates, *_rememberMode, *_autoEnglish;
-    NSButton *_importWords, *_clearLearning;
+    NSButton *_importWords, *_clearLearning, *_modeHint;
     BOOL _importing;
     NSComboBox *_fontFamily;
     NSArray<NSString *> *_fontFamilies;
@@ -235,6 +235,8 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     _theme.action=@selector(appearanceChanged:);
     _pageSize=[self popup:@[@"3 项",@"4 项",@"5 项",@"6 项",@"7 项",@"8 项",@"9 项"] identifier:@"candidate-page-size"];
     _expandCandidates=[self check:@"翻页时展开为三行候选" identifier:@"candidate-expand-on-paging"];
+    _modeHint=[self check:@"在光标旁提示中英文状态" identifier:@"input-mode-hint"];
+    _modeHint.action=@selector(modeHintChanged:);
     _fontFamilies=[NSFontManager.sharedFontManager.availableFontFamilies sortedArrayUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
     _fontFamily=[[CassotisFontComboBox alloc] init]; _fontFamily.usesDataSource=YES; _fontFamily.dataSource=self; _fontFamily.completes=YES;
     [_fontFamily.widthAnchor constraintEqualToConstant:220].active=YES;
@@ -252,7 +254,8 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     NSButton *resetAppearance=[NSButton buttonWithTitle:@"恢复默认外观" target:self action:@selector(resetAppearance:)];
     _resetAppearance=resetAppearance;
     [self section:@"外观" views:@[[self card:@[[self row:@"候选字体" control:_fontFamily],[self row:@"大小" control:sizeControls],
-        [self row:@"配色" control:_theme],[self row:@"每页候选" control:_pageSize],_expandCandidates]],
+        [self row:@"配色" control:_theme],[self row:@"每页候选" control:_pageSize],_expandCandidates,_modeHint,
+        [self hint:@"切换到言泉或切换中英文时显示当前状态；英文模式下进入输入框也会提示。"]]],
         [self hint:@"预览"],_preview,[self row:@"" control:resetAppearance]]];
 
     _fuzzy=[self check:@"启用模糊拼音" identifier:@"fuzzy-pinyin"]; _rules=[NSMutableArray array];
@@ -274,6 +277,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
         NSButton *enabled=[self check:actions[i] identifier:[NSString stringWithFormat:@"shortcut-enabled-%lu",(unsigned long)i]];
         enabled.tag=i; enabled.action=@selector(shortcutEnabledChanged:); [_shortcutEnabled addObject:enabled];
         CassotisShortcutRecorder *recorder=[[CassotisShortcutRecorder alloc] init]; recorder.target=self; recorder.action=@selector(changed:);
+        recorder.allowsCapsLock=i==0;
         recorder.accessibilityIdentifier=[NSString stringWithFormat:@"shortcut-%lu",(unsigned long)i]; recorder.accessibilityLabel=actions[i];
         [recorder.widthAnchor constraintEqualToConstant:220].active=YES;
         __weak CassotisSettingsController *weak=self;
@@ -291,6 +295,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     _completionKey=[self popup:@[@"Tab",@"反引号 `"] identifier:@"completion-key"];
     [self section:@"快捷键" views:@[[self card:shortcutRows],
         [self hint:@"点击快捷键后直接按键。按住 Ctrl、Option 或 Shift 时会立即显示；单独的 Shift 在松开时完成录制。Esc 取消。"],
+        [self hint:@"中英文切换也可录制 Caps Lock。有未上屏的内容时，先提交原始字母再切换。请先在“系统设置 → 键盘 → 文字输入 → 编辑”中关闭“使用大写锁定键切换输入法”，避免切到 ABC。选择此键后，在言泉内按住 Shift 输入大写；暂不区分短按和长按。"],
         [self card:@[[self row:@"候选翻页" control:_pageKeys],[self row:@"一键补全" control:_completionKey]]],
         [self hint:@"Command、Ctrl + Space 和 Fn 系统组合键由 macOS 管理。系统输入源切换键可在“系统设置 → 键盘”中调整。"]]];
 
@@ -491,6 +496,11 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
         [CassotisRuntimeLog.shared appendData:[@"[INFO] runtime logging enabled\n" dataUsingEncoding:NSUTF8StringEncoding]];
     _status.stringValue=@"日志设置已自动保存并生效。";
 }
+- (void)modeHintChanged:(NSButton *)sender {
+    if(_loading) return;
+    CassotisSetInputModeHintEnabled(sender.state==NSControlStateValueOn);
+    _status.stringValue=@"中英文状态提示已自动保存并生效。";
+}
 - (void)shortcutEnabledChanged:(NSButton *)sender { _shortcuts[sender.tag].enabled=sender.state==NSControlStateValueOn; [self changed:sender]; }
 - (void)appearanceChanged:(id)sender { [self updatePreview]; [self changed:sender]; }
 - (CGFloat)selectedFontSize { return CassotisCandidateFontSizes()[(NSUInteger)llround(_fontSize.doubleValue)].doubleValue; }
@@ -528,11 +538,13 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
 }
 - (void)resetAppearance:(id)sender {
     (void)sender; _fontSize.doubleValue=1; _fontFamily.stringValue=@"PingFang SC";
+    _modeHint.state=NSControlStateValueOn; CassotisSetInputModeHintEnabled(YES);
     [_theme selectItemAtIndex:0]; [_pageSize selectItemAtIndex:6]; _expandCandidates.state=0; [self appearanceChanged:nil];
 }
 - (void)reloadSettings {
     _loading=YES; _ready=NO; CassotisStartEngine(); cassotis::EngineClient engine;
     _rememberMode.state=CassotisRememberInputModeEnabled()?NSControlStateValueOn:NSControlStateValueOff;
+    _modeHint.state=CassotisInputModeHintEnabled()?NSControlStateValueOn:NSControlStateValueOff;
     try {
         if(!engine.connect(CassotisSocketPath().UTF8String)) throw std::runtime_error("正在读取设置，请稍候…");
         _state=engine.state(); _ready=YES;
@@ -608,6 +620,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
         if(_shortcuts[i].recording) { _status.stringValue=@"请先完成快捷键录制，或按 Esc 取消。"; return NO; }
         state.shortcuts[i]=_shortcuts[i].shortcut; state.shortcuts[i].disabled=!_shortcutEnabled[i].state;
         NSString *error=CassotisShortcutValidationError(state.shortcuts[i]);
+        if(i!=0 && state.shortcuts[i].key==20) error=@"Caps Lock 只能用于中英文状态切换。";
         if(error) { _status.stringValue=error; return NO; }
         for(int j=0;j<i;++j) if(!state.shortcuts[i].disabled && !state.shortcuts[j].disabled &&
             state.shortcuts[i].key==state.shortcuts[j].key && state.shortcuts[i].modifiers==state.shortcuts[j].modifiers) {

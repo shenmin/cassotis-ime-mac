@@ -17,7 +17,7 @@ type
     TncImportMode = (imBaseDict, imQueryPathPrior, imLmTransition, imCharLm,
         imCharReverseLm, imTransitionCompletion, imCompletionPrior,
         imCompletionLookup, imCompletionCompetition, imCompletionPairAudit,
-        imLongCompletion, imShortPromotion);
+        imLongCompletion, imShortPromotion, imWordFrequency);
 
 const
     c_segment_path_separator = #3;
@@ -25,9 +25,10 @@ const
 procedure print_usage;
 begin
     Writeln('Usage: cassotis_ime_dict_init <db_path> <schema_path> [import_path] [base|query_path|lm_transition|char_lm|char_reverse_lm|transition_completion|completion_prior|completion_lookup|' +
-        'completion_competition|completion_pair_audit|long_completion|short_promotion]');
+        'completion_competition|completion_pair_audit|long_completion|short_promotion|word_frequency]');
     Writeln('       cassotis_ime_dict_init <db_path> <schema_path> --build-contains-index');
     Writeln('       cassotis_ime_dict_init <db_path> <schema_path> --require-short-promotion');
+    Writeln('       cassotis_ime_dict_init <db_path> <schema_path> --require-word-frequency');
 end;
 
 { The runtime reads a short query's promotions from the dictionary instead of
@@ -86,6 +87,47 @@ begin
             Inc(count);
             start := i + 1;
         end;
+end;
+
+{ Without a context the short-word choice weighs how often the general text
+  holds each word (dict_base_word_frequency); a dictionary without the table
+  gives every word 0 and chooses worse. Exit code 0 when it has rows. }
+function require_word_frequency(const db_path: string): Integer;
+var
+    conn: TncSqliteConnection;
+    stmt: Psqlite3_stmt;
+    rows: Integer;
+begin
+    rows := 0;
+    conn := TncSqliteConnection.Create(db_path);
+    try
+        stmt := nil;
+        if conn.open(SQLITE_OPEN_READONLY) and conn.prepare(
+            'SELECT COUNT(*) FROM dict_base_word_frequency', stmt) then
+        begin
+            try
+                if conn.step(stmt) = SQLITE_ROW then
+                begin
+                    rows := conn.ColumnInt(stmt, 0);
+                end;
+            finally
+                conn.finalize(stmt);
+            end;
+        end;
+    finally
+        conn.Free;
+    end;
+    if rows > 0 then
+    begin
+        Writeln(Format('Word frequency rows: %d', [rows]));
+        Result := 0;
+    end
+    else
+    begin
+        Writeln('No word frequency rows in ' + db_path +
+            ': import dict_word_frequency_*.txt with scripts/build_dictionaries.py.');
+        Result := 5;
+    end;
 end;
 
 function load_schema(const schema_path: string; out schema_text: string): Boolean;
@@ -670,6 +712,10 @@ begin
         begin
             Exit(imShortPromotion);
         end;
+        if Pos('word_frequency', normalized) > 0 then
+        begin
+            Exit(imWordFrequency);
+        end;
         if Pos('char_reverse_lm', normalized) > 0 then
         begin
             Exit(imCharReverseLm);
@@ -735,6 +781,12 @@ begin
         (normalized = 'short-promotion') then
     begin
         Exit(imShortPromotion);
+    end;
+
+    if (normalized = 'word_frequency') or
+        (normalized = 'word-frequency') then
+    begin
+        Exit(imWordFrequency);
     end;
 
     if (normalized = 'char_lm') or (normalized = 'char-lm') or
@@ -968,6 +1020,9 @@ const
         'INSERT OR REPLACE INTO dict_base_short_promotion' +
         '(pinyin, baseline_text, promoted_text, lead, candidates) ' +
         'VALUES (?1, ?2, ?3, ?4, ?5);';
+    insert_word_frequency_sql =
+        'INSERT OR REPLACE INTO dict_base_word_frequency(text, score) ' +
+        'VALUES (?1, ?2);';
     insert_char_lm_sql =
         'INSERT OR REPLACE INTO dict_base_char_lm(ngram, score, backoff) VALUES (?1, ?2, ?3);';
     insert_char_reverse_lm_sql =
@@ -1035,6 +1090,7 @@ var
     inserted_completion_competitions: Integer;
     inserted_completion_pair_audits: Integer;
     inserted_short_promotions: Integer;
+    inserted_word_frequencies: Integer;
     promotion_parts: TArray<string>;
     completion_parser: TncPinyinParser;
     jianpin_variants: TArray<string>;
@@ -1076,6 +1132,7 @@ begin
     inserted_completion_competitions := 0;
     inserted_completion_pair_audits := 0;
     inserted_short_promotions := 0;
+    inserted_word_frequencies := 0;
     try
         if import_mode = imQueryPathPrior then
         begin
@@ -1331,6 +1388,24 @@ begin
                 Exit;
             end;
             if not conn.prepare(insert_short_promotion_sql,
+                stmt_query_path) then
+            begin
+                Exit;
+            end;
+        end
+        else if import_mode = imWordFrequency then
+        begin
+            if (not conn.exec(
+                'DROP TABLE IF EXISTS dict_base_word_frequency;')) or
+                (not conn.exec(
+                'CREATE TABLE dict_base_word_frequency (' +
+                'text TEXT NOT NULL PRIMARY KEY,' +
+                'score INTEGER NOT NULL DEFAULT 0' +
+                ') WITHOUT ROWID;')) then
+            begin
+                Exit;
+            end;
+            if not conn.prepare(insert_word_frequency_sql,
                 stmt_query_path) then
             begin
                 Exit;
@@ -1677,6 +1752,41 @@ begin
                     Break;
                 end;
                 Inc(inserted_completion_competitions);
+                if (not conn.reset(stmt_query_path)) or
+                    (not conn.clear_bindings(stmt_query_path)) then
+                begin
+                    has_error := True;
+                    Break;
+                end;
+                Continue;
+            end;
+
+            if import_mode = imWordFrequency then
+            begin
+                // A word and how often the general text holds it as a word,
+                // 100 * log10(1 + occurrences).
+                promotion_parts := split_fields(line, #9);
+                if (Length(promotion_parts) <> 2) or
+                    (Trim(promotion_parts[0]) = '') or
+                    (StrToIntDef(Trim(promotion_parts[1]), 0) <= 0) then
+                begin
+                    Continue;
+                end;
+                if (not conn.BindText(stmt_query_path, 1,
+                    Trim(promotion_parts[0]))) or
+                    (not conn.BindInt(stmt_query_path, 2,
+                    StrToInt(Trim(promotion_parts[1])))) then
+                begin
+                    has_error := True;
+                    Break;
+                end;
+                rc := conn.step(stmt_query_path);
+                if rc <> SQLITE_DONE then
+                begin
+                    has_error := True;
+                    Break;
+                end;
+                Inc(inserted_word_frequencies);
                 if (not conn.reset(stmt_query_path)) or
                     (not conn.clear_bindings(stmt_query_path)) then
                 begin
@@ -2072,6 +2182,12 @@ begin
                 'Imported %d short promotion rows from %d lines.',
                 [inserted_short_promotions, line_count]));
         end
+        else if import_mode = imWordFrequency then
+        begin
+            Writeln(Format(
+                'Imported %d word frequencies from %d lines.',
+                [inserted_word_frequencies, line_count]));
+        end
         else
         begin
             Writeln(Format('Imported %d entries (%d jianpin rows, %d compact aliases) from %d lines.',
@@ -2136,6 +2252,11 @@ begin
         SameText(Trim(ParamStr(3)), '--require-short-promotion') then
     begin
         Halt(require_short_promotion(db_path));
+    end;
+    if (ParamCount >= 3) and
+        SameText(Trim(ParamStr(3)), '--require-word-frequency') then
+    begin
+        Halt(require_word_frequency(db_path));
     end;
     build_contains_index := (ParamCount >= 3) and
         SameText(Trim(ParamStr(3)), '--build-contains-index');

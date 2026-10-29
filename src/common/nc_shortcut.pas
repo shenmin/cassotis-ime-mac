@@ -392,6 +392,13 @@ begin
         Exit(svi_missing_key);
     end;
 
+    if normalized_key = VK_CAPITAL then
+    begin
+        if not (shortcut.shift_down or shortcut.ctrl_down or shortcut.alt_down) then
+            Exit(svi_none);
+        Exit(svi_invalid_modifier_key);
+    end;
+
     if (normalized_key = VK_SHIFT) or (normalized_key = VK_CONTROL) or
         (normalized_key = VK_MENU) then
     begin
@@ -436,7 +443,8 @@ begin
     for action := Low(TncShortcutAction) to High(TncShortcutAction) do
     begin
         shortcut := nc_shortcut_for_action(config, action);
-        if not nc_shortcut_is_valid(shortcut) then
+        if (not nc_shortcut_is_valid(shortcut)) or
+            ((shortcut.key_code = VK_CAPITAL) and (action <> sa_input_mode_toggle)) then
         begin
             was_disabled := shortcut.disabled;
             shortcut := nc_default_shortcut(action);
@@ -535,6 +543,7 @@ begin
 
     case normalized_key of
         VK_SHIFT: Result := 'Shift';
+        VK_CAPITAL: Result := 'CapsLock';
         VK_CONTROL: Result := 'Ctrl';
         VK_MENU: Result := 'Alt';
         VK_SPACE: Result := 'Space';
@@ -636,6 +645,7 @@ begin
     end;
 
     if normalized_value = 'SHIFT' then key_code := VK_SHIFT
+    else if (normalized_value = 'CAPSLOCK') or (normalized_value = 'CAPS LOCK') then key_code := VK_CAPITAL
     else if (normalized_value = 'CTRL') or (normalized_value = 'CONTROL') then key_code := VK_CONTROL
     else if normalized_value = 'ALT' then key_code := VK_MENU
     else if normalized_value = 'SPACE' then key_code := VK_SPACE

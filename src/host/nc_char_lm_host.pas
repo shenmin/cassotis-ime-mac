@@ -120,36 +120,36 @@ type
 
 { ORT intra-op threads for the shared LM session. The repair and shared-LM
   hosts open one model and share its session (created by whichever loads
-  first), so both ask for the same count: one thread per processor core, at
-  least 4 and at most 8. Every thread of the pool stays busy for the length of
-  a run, so the count is the share of the processors a run takes, and it
-  trades processor time for latency about one to one: on six cores with
-  twelve logical processors, six threads took 10 to 18% less processor time
-  than eight (39% instead of 49% of the processors on the long suite) for
-  runs 4 to 12% longer. One per core leaves the other logical processors to
-  the application being typed into. }
+  first), so both ask for the same count. On Apple Silicon use the fastest
+  core tier rather than counting efficiency cores as equally fast workers:
+  every operator waits for its pool, and extra workers can increase latency
+  while the application and display are busy. If the tier is unavailable,
+  retain the physical/system CPU-count fallback. Keep the 4-to-8 thread bounds. }
 function nc_shared_lm_threads: Integer;
 
 implementation
 
 uses fpjson, jsonparser, nc_runtime_paths, nc_sha256, nc_io_compat;
 
-// Query physical cores so repair and scoring share a session with one policy.
+// The same hardware policy is used by repair, foreground and background work.
 function sysctlbyname(name: PAnsiChar; oldp: Pointer; oldlenp: PSizeUInt;
     newp: Pointer; newlen: SizeUInt): LongInt; cdecl; external 'c';
 
-function processor_core_count: Integer;
+function query_core_count(const name: PAnsiChar): Integer;
 var size: SizeUInt; cores: LongInt;
 begin
     cores := 0;
     size := SizeOf(cores);
-    if sysctlbyname('hw.physicalcpu', @cores, @size, nil, 0) <> 0 then cores := 0;
+    if (sysctlbyname(name, @cores, @size, nil, 0) <> 0) or
+        (size <> SizeOf(cores)) or (cores < 0) then cores := 0;
     Result := cores;
 end;
 
 function nc_shared_lm_threads: Integer;
 begin
-    Result := processor_core_count;
+    Result := query_core_count('hw.perflevel0.physicalcpu');
+    if Result <= 0 then
+        Result := query_core_count('hw.physicalcpu');
     if Result <= 0 then
         Result := GetCPUCount;
     if Result < 4 then

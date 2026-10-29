@@ -5,6 +5,7 @@
 static NSString *keyName(uint16_t key) {
     switch(key) {
         case 16:return @"Shift"; case 17:return @"Ctrl"; case 18:return @"Option";
+        case 20:return @"Caps Lock";
         case 32:return @"Space"; case 9:return @"Tab"; case 13:return @"Return";
         case 8:return @"Delete ⌫"; case 46:return @"Delete ⌦"; case 27:return @"Esc";
         case 37:return @"←"; case 38:return @"↑"; case 39:return @"→"; case 40:return @"↓";
@@ -37,6 +38,7 @@ NSString *CassotisShortcutDescription(const cassotis::Shortcut &s) {
 NSString *CassotisShortcutValidationError(const cassotis::Shortcut &s) {
     if(s.disabled) return nil;
     if(s.modifiers&~7) return @"Command 和 Fn 组合键由 macOS 管理，请选择 Ctrl、Option 或 Shift。";
+    if(s.key==20) return !s.modifiers?nil:@"Caps Lock 只能单独用于中英文状态切换。";
     if(s.key==32 && (s.modifiers&2)) return @"Ctrl + Space 组合键保留给 macOS 切换输入源。";
     if(s.key>=16 && s.key<=18) return s.key==16 && !s.modifiers?nil:@"单独的修饰键仅支持 Shift；请再按一个字母或功能键。";
     if(!keyName(s.key).length || (!s.modifiers && !(s.key>=0x70 && s.key<=0x83)))
@@ -109,6 +111,7 @@ NSString *CassotisShortcutValidationError(const cassotis::Shortcut &s) {
 }
 - (void)accept:(cassotis::Shortcut)value {
     NSString *error=CassotisShortcutValidationError(value);
+    if(value.key==20 && !self.allowsCapsLock) error=@"Caps Lock 只能用于中英文状态切换。";
     if(error) { if(self.validationMessage) self.validationMessage(error); return; }
     _shortcut=value; [self cancelRecording];
     if(self.validationMessage) self.validationMessage(@"快捷键已录制。" );
@@ -118,6 +121,15 @@ NSString *CassotisShortcutValidationError(const cassotis::Shortcut &s) {
     if(!_recording) return;
     NSUInteger flags=event.modifierFlags&(NSEventModifierFlagShift|NSEventModifierFlagControl|
         NSEventModifierFlagOption|NSEventModifierFlagCommand);
+    if(event.keyCode==kVK_CapsLock) {
+        if(self.allowsCapsLock && !flags && !_gestureFlags && !(event.modifierFlags&NSEventModifierFlagFunction))
+            [self accept:{20,0,false}];
+        else {
+            _gestureFlags=0;
+            if(self.validationMessage) self.validationMessage(@"Caps Lock 只能单独用于中英文状态切换。" );
+        }
+        return;
+    }
     _gestureFlags|=flags;
     if(flags) [self display:[modifierNames(flags) componentsJoinedByString:@" + "]];
     else if(_gestureFlags==NSEventModifierFlagShift && (event.keyCode==kVK_Shift || event.keyCode==kVK_RightShift)) {

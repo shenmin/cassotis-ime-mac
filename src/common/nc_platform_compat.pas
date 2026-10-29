@@ -13,6 +13,7 @@ const
     VK_SHIFT = $10;
     VK_CONTROL = $11;
     VK_MENU = $12;
+    VK_CAPITAL = $14;
     VK_ESCAPE = $1B;
     VK_SPACE = $20;
     VK_PRIOR = $21;

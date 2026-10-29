@@ -14,6 +14,11 @@ FOUNDATION_EXPORT NSString *const CassotisInputModeByApplicationKey;
 FOUNDATION_EXPORT NSString *const CassotisRememberInputModeKey;
 FOUNDATION_EXPORT BOOL CassotisRememberInputModeEnabled(void);
 FOUNDATION_EXPORT void CassotisSetRememberInputModeEnabled(BOOL enabled);
+FOUNDATION_EXPORT NSString *const CassotisInputModeHintKey;
+FOUNDATION_EXPORT BOOL CassotisInputModeHintEnabled(void);
+FOUNDATION_EXPORT void CassotisSetInputModeHintEnabled(BOOL enabled);
+// Called on the main thread by the system input-source notification observer.
+FOUNDATION_EXPORT void CassotisInputSourceDidChange(void);
 // Records the mode for the application that is frontmost right now; used by
 // switch paths that run without an active input session.
 FOUNDATION_EXPORT void CassotisRememberInputModeForFrontmostApplication(uint8_t mode);
@@ -55,6 +60,7 @@ NSRect CassotisInputModeFrameAtCaret(NSRect caret, NSSize size, NSRect visible,
 
 @interface CassotisInputModePanel : NSPanel
 - (BOOL)showMode:(uint8_t)mode client:(id)client;
+- (BOOL)showMode:(uint8_t)mode client:(id)client hold:(NSTimeInterval)hold;
 - (void)dismiss;
 @end
 

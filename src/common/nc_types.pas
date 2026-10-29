@@ -338,7 +338,8 @@ type
         sk_f21,
         sk_f22,
         sk_f23,
-        sk_f24
+        sk_f24,
+        sk_caps_lock
     );
 
     TncKeyEvent = record

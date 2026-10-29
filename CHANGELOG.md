@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.5.0 (build 6, unreleased)
+
+- Use general-text word frequencies and the updated short-word ranking tree, retaining common no-context choices while giving context more room to decide.
+- Page through all single-character candidates, including syllables with more than 256 readings; fix repeated candidates across pages and restore 嗯 / 噷 for ng / hm.
+- Draft short phrases from attested transition paths and load word-transition scores only for the current query, reducing startup work and memory.
+- Add an automatically saved Appearance switch for the existing caret mode bubble. Show both modes when switching to Cassotis, remind of English on field focus, and preserve the hint through focus handoffs and modifier notifications.
+- Allow Caps Lock as the optional Chinese/English mode key, committing raw composition before switching. Default Shift behavior is unchanged. The optional Caps Lock binding currently does not distinguish physical short and long presses; see CONFIGURATION.md.
+- Update the engine and dictionaries to Windows / Cassotis Lexicon v2.5.0. The sole neural model remains unchanged.
+- Size the shared model thread pool from the fastest Apple Silicon core tier, with four to eight workers and a physical/system CPU fallback.
+
 ## 2.1.0 (build 5, 2026-10-26)
 
 - Import input frequencies from other input methods in Advanced, using comma/Tab-separated text or Windows statistics exports. Show the format and ranking effects before file selection; support UTF-8, BOM-marked UTF-16 and GBK, and report committed entries without blocking the settings window.

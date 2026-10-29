@@ -4,6 +4,12 @@ root="$(cd "$(dirname "$0")/.." && pwd -P)"
 arch="${CASSOTIS_ARCH:-arm64}"
 app="$root/build/$arch/Cassotis.app"
 bin="$root/build/$arch/bin"
+for variant in sc tc; do
+    for required in short-promotion word-frequency; do
+        "$bin/cassotis-dict-init" "$root/build/dictionaries/dict_$variant.db" \
+            "$root/data/schema.sql" "--require-$required"
+    done
+done
 version="$(tr -d '\r\n' < "$root/VERSION")"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 2
 bundle_build="$(tr -d '\r\n' < "$root/BUILD_NUMBER")"

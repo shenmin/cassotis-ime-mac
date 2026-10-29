@@ -12,6 +12,41 @@
 
 static NSTask *engineTask;
 static __weak CassotisInputSession *activeSession;
+static BOOL modeSourceKnown=NO;
+static NSUInteger modeSourceRevision=0;
+static NSTimeInterval modeSourceActivationUntil=0;
+static __weak id lastFocusHintClient;
+static NSTimeInterval lastFocusHintTime=0;
+enum class ModeHintReason { Focus, Toggle, Activation };
+@interface CassotisInputSession (SourceFeedback)
+- (void)inputSourceSelected:(BOOL)selected;
+@end
+NSString *const CassotisInputModeHintKey=@"InputModeHint";
+static NSString *const modeHintChanged=@"CassotisInputModeHintChanged";
+BOOL CassotisInputModeHintEnabled(void) {
+    NSUserDefaults *defaults=NSUserDefaults.standardUserDefaults;
+    return [defaults objectForKey:CassotisInputModeHintKey]==nil || [defaults boolForKey:CassotisInputModeHintKey];
+}
+void CassotisSetInputModeHintEnabled(BOOL enabled) {
+    [NSUserDefaults.standardUserDefaults setBool:enabled forKey:CassotisInputModeHintKey];
+    [NSNotificationCenter.defaultCenter postNotificationName:modeHintChanged object:nil];
+}
+void CassotisInputSourceDidChange(void) {
+    modeSourceKnown=YES;
+    modeSourceActivationUntil=NSProcessInfo.processInfo.systemUptime+1.5;
+    NSUInteger revision=++modeSourceRevision;
+    __weak CassotisInputSession *session=activeSession;
+    id client=session.client;
+    [session inputSourceSelected:NO];
+    // TIS can report a different source to a background process. Use the
+    // selection notification as a reason and IMK as the authority on whether
+    // we still own this client. Notifications can arrive before or after IMK.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,50*NSEC_PER_MSEC),dispatch_get_main_queue(),^{
+        if(revision==modeSourceRevision && session && session==activeSession && session.client==client &&
+           NSProcessInfo.processInfo.systemUptime<modeSourceActivationUntil)
+            [session inputSourceSelected:YES];
+    });
+}
 void CassotisStopEngine(void) {
     NSTask *task=engineTask;
     if(!task.running) return;
@@ -124,6 +159,7 @@ cassotis::Key CassotisTranslateKey(NSEvent *e, BOOL release) {
         case kVK_Control:case kVK_RightControl:k.special=21;break;
         case kVK_Option:case kVK_RightOption:k.special=22;break;
         case kVK_Command:case kVK_RightCommand:k.special=23;break;
+        case kVK_CapsLock:k.special=48;break;
         case kVK_F1:k.special=24;break;case kVK_F2:k.special=25;break;case kVK_F3:k.special=26;break;
         case kVK_F4:k.special=27;break;case kVK_F5:k.special=28;break;case kVK_F6:k.special=29;break;
         case kVK_F7:k.special=30;break;case kVK_F8:k.special=31;break;case kVK_F9:k.special=32;break;
@@ -146,6 +182,7 @@ cassotis::Key CassotisTranslateKey(NSEvent *e, BOOL release) {
     return k;
 }
 uint16_t CassotisShortcutKey(const cassotis::Key &k) {
+    if(k.special==48) return 20; // VK_CAPITAL; appended after F1–F24 in the wire enum.
     if(k.special>=24 && k.special<=47) return uint16_t(0x70+k.special-24);
     static const uint16_t specials[]={0,8,46,13,27,32,9,37,39,38,40,36,35,33,34,106,107,109,110,111,16,17,18,91};
     if(k.special<24 && k.special) return specials[k.special];
@@ -251,7 +288,8 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     CassotisInputModePanel *_modePanel;
     BOOL _modeKnown, _modeFeedbackPending;
     uint8_t _inputMode;
-    NSTimeInterval _modeFeedbackDeadline;
+    NSTimeInterval _modeFeedbackDeadline, _modeFeedbackNotBefore;
+    ModeHintReason _modeHintReason;
     NSTimer *_timer;
     BOOL _active, _committing, _settingsGesture, _restorePending;
     NSUInteger _modifiers;
@@ -268,12 +306,14 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     self=[super init]; if(self) {
         _engine=std::make_unique<cassotis::EngineClient>(); _panel=[[CassotisCandidatePanel alloc] init];
         _modePanel=[[CassotisInputModePanel alloc] init];
+        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(modeHintPreferenceChanged:)
+            name:modeHintChanged object:nil];
         __weak CassotisInputSession *weak=self;
         _panel.selection=^(NSInteger index){ [weak selectCandidate:index]; };
         _panel.deletion=^(NSInteger index){ [weak deleteCandidate:index]; };
     } return self;
 }
-- (void)dealloc { [_timer invalidate]; [_panel orderOut:nil]; [_modePanel dismiss]; }
+- (void)dealloc { [NSNotificationCenter.defaultCenter removeObserver:self]; [_timer invalidate]; [_panel orderOut:nil]; [_modePanel dismiss]; }
 - (CassotisCandidatePanel *)panel { return _panel; }
 - (CassotisInputModePanel *)modePanel { return _modePanel; }
 - (NSString *)preedit { return str(_result.preedit); }
@@ -292,22 +332,40 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     if(_modeFeedbackPending || _modePanel.visible) [_modePanel dismiss];
     _modeFeedbackPending=NO;
 }
+- (void)modeHintPreferenceChanged:(NSNotification *)notification {
+    (void)notification; [self cancelModeFeedback];
+}
+- (void)inputSourceSelected:(BOOL)selected {
+    if(!selected) { [self cancelModeFeedback]; return; }
+    if(!_active || !_result.preedit.empty()) return;
+    _modeHintReason=ModeHintReason::Activation;
+    _modeFeedbackPending=YES; _modeFeedbackNotBefore=0;
+    _modeFeedbackDeadline=NSProcessInfo.processInfo.systemUptime+0.6;
+    [self presentModeFeedback];
+}
 - (void)presentModeFeedback {
     if(!_modeFeedbackPending || !_modeKnown || !_active) return;
-    if(!_result.preedit.empty() || NSProcessInfo.processInfo.systemUptime>_modeFeedbackDeadline) {
+    NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
+    if(!CassotisInputModeHintEnabled() || !_result.preedit.empty() || now>_modeFeedbackDeadline ||
+       (_modeHintReason==ModeHintReason::Focus && (_inputMode==0 ||
+        (self.client==lastFocusHintClient && now-lastFocusHintTime<3)))) {
         [self cancelModeFeedback]; return;
     }
+    if(now<_modeFeedbackNotBefore) return;
     id client=self.client;
-    BOOL shown=[_modePanel showMode:_inputMode client:client];
+    BOOL shown=[_modePanel showMode:_inputMode client:client
+        hold:_modeHintReason==ModeHintReason::Toggle?0.8:1.3];
     if(!shown) return;
     if(!_modeFeedbackPending || !_active || self.client!=client || !_result.preedit.empty()) {
         [_modePanel dismiss]; return;
     }
     _modeFeedbackPending=NO;
+    lastFocusHintClient=client; lastFocusHintTime=now;
 }
 - (void)showInputMode:(uint8_t)mode {
     if(!_active) return;
     _inputMode=mode; _modeKnown=YES; _modeFeedbackPending=YES;
+    _modeHintReason=ModeHintReason::Toggle; _modeFeedbackNotBefore=0;
     _modeFeedbackDeadline=NSProcessInfo.processInfo.systemUptime+0.4;
     // Reached only when the user changed the mode, never when an application
     // inherits the current one, so this is the one place a per-application
@@ -378,8 +436,17 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     if(activeSession && activeSession!=self) [activeSession deactivate];
     if(_active && self.client!=client) [self deactivate];
     activeSession=self;
-    self.client=client; _active=YES; _modifiers=0; _tap={}; _settingsGesture=NO;
-    if(newActivation) { _modeKnown=NO; _modeFeedbackPending=YES; _restorePending=YES; }
+    self.client=client; _active=YES; _tap={}; _settingsGesture=NO;
+    if(newActivation)
+        _modifiers=CGEventSourceFlagsState(kCGEventSourceStateCombinedSessionState)&NSEventModifierFlagCapsLock;
+    if(newActivation) {
+        NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
+        _modeHintReason=(!modeSourceKnown || now<modeSourceActivationUntil)
+            ?ModeHintReason::Activation:ModeHintReason::Focus;
+        _modeFeedbackNotBefore=now+(_modeHintReason==ModeHintReason::Focus?0.15:0);
+        _modeFeedbackDeadline=now+0.6;
+        _modeKnown=NO; _modeFeedbackPending=YES; _restorePending=YES;
+    }
     [self ensureReady]; [self restoreRememberedInputModeIfPending]; [self presentModeFeedback];
     [_timer invalidate]; __weak CassotisInputSession *weak=self;
     _timer=[NSTimer timerWithTimeInterval:0.025 repeats:YES block:^(NSTimer *t){
@@ -573,25 +640,41 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     if(event.type!=NSEventTypeFlagsChanged)
         _seen=CassotisInputActivitySource(NSProcessInfo.processInfo.systemUptime);
     if(event.type==NSEventTypeKeyDown || event.type==NSEventTypeLeftMouseDown ||
-       event.type==NSEventTypeRightMouseDown) [self cancelModeFeedback];
+       event.type==NSEventTypeRightMouseDown) {
+        modeSourceActivationUntil=0;
+        [self cancelModeFeedback];
+    }
     if(event.type==NSEventTypeLeftMouseDown || event.type==NSEventTypeRightMouseDown) {
         if(_panel.visible && NSPointInRect(NSEvent.mouseLocation,_panel.frame)) return NO;
         [self commit]; [self cancelModifierGesture]; return NO;
     }
     BOOL release=NO;
     if(event.type==NSEventTypeFlagsChanged) {
-        NSUInteger bit=0;
-        switch(event.keyCode) {
-            case kVK_Shift:case kVK_RightShift:bit=NSEventModifierFlagShift;break;
-            case kVK_Control:case kVK_RightControl:bit=NSEventModifierFlagControl;break;
-            case kVK_Option:case kVK_RightOption:bit=NSEventModifierFlagOption;break;
-            case kVK_Command:case kVK_RightCommand:bit=NSEventModifierFlagCommand;break;
-            default:_modifiers=event.modifierFlags;[self cancelModifierGesture];return NO;
+        if(event.keyCode==kVK_CapsLock) {
+            // Both on and off are presses. Extra notifications (including a
+            // physical release with unchanged lock state) must not toggle twice.
+            const bool changed=(_modifiers^event.modifierFlags)&NSEventModifierFlagCapsLock;
+            _modifiers=event.modifierFlags;
+            [self cancelModifierGesture];
+            if(!changed) return NO;
+        } else {
+            NSUInteger bit=0;
+            switch(event.keyCode) {
+                case kVK_Shift:case kVK_RightShift:bit=NSEventModifierFlagShift;break;
+                case kVK_Control:case kVK_RightControl:bit=NSEventModifierFlagControl;break;
+                case kVK_Option:case kVK_RightOption:bit=NSEventModifierFlagOption;break;
+                case kVK_Command:case kVK_RightCommand:bit=NSEventModifierFlagCommand;break;
+                default:_modifiers=event.modifierFlags;[self cancelModifierGesture];return NO;
+            }
+            release=!(event.modifierFlags&bit);
+            if(release && !(_modifiers&bit)) { _modifiers=event.modifierFlags; return NO; }
+            [self watchModifierTap:event release:release];
+            _modifiers=event.modifierFlags;
         }
-        release=!(event.modifierFlags&bit);
-        if(release && !(_modifiers&bit)) { _modifiers=event.modifierFlags; return NO; }
-        [self watchModifierTap:event release:release];
-        _modifiers=event.modifierFlags;
+    } else {
+        // Resynchronize after an event the host consumed or an external lock
+        // change, without disturbing the Shift tap's held-modifier baseline.
+        _modifiers=(_modifiers&~NSEventModifierFlagCapsLock)|(event.modifierFlags&NSEventModifierFlagCapsLock);
     }
     auto key=CassotisTranslateKey(event,release);
     const auto selection=clientSelection(self.client);
@@ -599,7 +682,7 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
         key.precedingDigit=CassotisPrecedingDigit(preceding,_seen,selection);
     if((key.modifiers&8) || (key.special==5 && (key.modifiers&2)) || event.keyCode==kVK_Function ||
        ((event.modifierFlags&NSEventModifierFlagFunction) && (!key.special || key.special==5))) {
-        [self cancelModeFeedback];
+        if(event.type!=NSEventTypeFlagsChanged) [self cancelModeFeedback];
         [self commit]; [self cancelModifierGesture]; return NO;
     }
     if(!_startupKeys.empty()) {
@@ -628,6 +711,22 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     [self restoreRememberedInputModeIfPending];
     try {
         auto state=_engine->state(false);
+        const auto &modeShortcut=state.shortcuts[0];
+        const bool capsModeKey=!modeShortcut.disabled && modeShortcut.key==20 && !modeShortcut.modifiers;
+        if(key.special==48 && (!capsModeKey || (key.modifiers&15) ||
+            (event.modifierFlags&NSEventModifierFlagFunction))) return NO;
+        // A mode-switch Caps Lock still changes the OS lock bit. Ignore its
+        // casing for ordinary ASCII letters in this input method only. Preserve
+        // Shift, shortcuts, Option layouts/dead keys and non-Latin characters.
+        bool normalizedCapsText=false;
+        if(capsModeKey && (key.modifiers&16) && !(key.modifiers&14) &&
+           !key.special && key.text.size()==1 &&
+           ((key.text[0]>='a' && key.text[0]<='z') || (key.text[0]>='A' && key.text[0]<='Z'))) {
+            const auto original=key.text;
+            key.modifiers&=~16;
+            key.text[0]=(key.modifiers&1)?toupper(key.text[0]):tolower(key.text[0]);
+            normalizedCapsText=key.text!=original;
+        }
         // Match an explicitly configured Option chord against the unmodified
         // layout character. Otherwise leave Option text and dead keys to macOS.
         if((key.modifiers&4) && !key.special) {
@@ -657,6 +756,12 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
         }
         if(!release && event.type==NSEventTypeKeyDown) [self syncSurrounding];
         auto result=_engine->key(key);
+        // English normally passes through to the client. If the OS supplied
+        // an uppercase letter solely because of our mode key, insert the
+        // corrected letter once instead of passing that uppercase event on.
+        if(normalizedCapsText && !result.handled && result.commit.empty() && result.preedit.empty()) {
+            result.handled=true; result.commit=key.text;
+        }
         if(result.handled || !result.commit.empty() || !result.preedit.empty()) [self apply:result];
         else if(event.type==NSEventTypeKeyDown) [self commit];
         if(plainDigit && result.preedit.empty() &&
@@ -665,7 +770,6 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
             rememberDigit();
         // Read the authoritative new mode only for the configured mode key;
         // ordinary typing adds no state RPC or work to the input path.
-        const auto &modeShortcut=state.shortcuts[0];
         if(_active && self.client==eventClient && _engine->connected() &&
            !modeShortcut.disabled && !key.repeat && vk==modeShortcut.key) {
             auto mode=_engine->state(false).mode;

@@ -187,6 +187,9 @@ static NSArray<NSValue *> *caretAccessories(NSRect caret,pid_t clientPID) {
     return YES;
 }
 - (BOOL)showMode:(uint8_t)mode client:(id)client {
+    return [self showMode:mode client:client hold:0.85];
+}
+- (BOOL)showMode:(uint8_t)mode client:(id)client hold:(NSTimeInterval)hold {
     [self dismiss];
     NSUInteger revision=_revision;
     NSRect caret;
@@ -232,7 +235,7 @@ static NSArray<NSValue *> *caretAccessories(NSRect caret,pid_t clientPID) {
            ![panel placeKeepingFrame:panel.frame]) [panel dismiss];
     }];
     [NSRunLoop.mainRunLoop addTimer:_positionTimer forMode:NSRunLoopCommonModes];
-    _dismissTimer=[NSTimer timerWithTimeInterval:0.85 repeats:NO block:^(NSTimer *timer) {
+    _dismissTimer=[NSTimer timerWithTimeInterval:hold repeats:NO block:^(NSTimer *timer) {
         (void)timer; [weak fadeOutRevision:revision];
     }];
     [NSRunLoop.mainRunLoop addTimer:_dismissTimer forMode:NSRunLoopCommonModes];

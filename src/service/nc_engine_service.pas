@@ -414,6 +414,7 @@ begin
         sk_control: key_code := VK_CONTROL;
         sk_alt: key_code := VK_MENU;
         sk_super: key_code := VK_LWIN;
+        sk_caps_lock: key_code := VK_CAPITAL;
     end;
     if key_code <> 0 then
         Exit(True);
@@ -996,7 +997,11 @@ begin
     try
         FEngine.set_punctuation_preceding_char(Char(key_event.punctuation_preceding_char));
         raw_commit_text := '';
-        if modifier_release and (shortcut_action = sa_input_mode_toggle) and
+        // Caps Lock reports a lock-state transition, not a modifier release.
+        // Both standalone mode keys preserve the original composition before
+        // the engine's mode change resets it (including double-pinyin codes).
+        if shortcut_matched and (modifier_release or (key_code = VK_CAPITAL)) and
+            (shortcut_action = sa_input_mode_toggle) and
             (FState.input_mode = im_chinese) and
             (context.Composition <> '') then
         begin

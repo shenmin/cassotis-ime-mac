@@ -1,17 +1,20 @@
 # 言泉输入法 macOS 基准测试
 
-本文记录 macOS **v2.1.0（build 5）** 的完整实测数据，并与前一正式版 **v2.0.0** 对比。基准工具、语料与逐例诊断不随公开源码分发；构建和使用输入法不依赖这些内部材料。
+本文记录 macOS **v2.5.0（build 6）** 的完整实测数据，并与前一正式版 **v2.1.0** 对比。基准工具、语料与逐例诊断不随公开源码分发；构建和使用输入法不依赖这些内部材料。
 
 ## macOS 版本对比
 
-本轮沿用 2.1.0 准备期间已修正读音的相同语料（51 条长句、217 条短词）。macOS v2.1.0 的数据均来自本轮 v2.4.0 对齐后的完整重测；v2.0.0 行的普通字体保留 10 月 23 日原程序搭配原 Lexicon v2.2.0 在相同语料上的四项完整结果，斜体是原发布值；只有一个数值表示两次相同。v1.0.0 保留其历史发布成绩。版本号均为 macOS 产品版本，历史发布产物和原始报告不改写。
+本轮沿用 v2.1.0 相同语料，没有再次修改案例或读音。v2.5.0 使用本轮完整测量，v2.1.0 保留上一正式版成绩。v2.0.0 行的普通字体保留 10 月 23 日原程序搭配原 Lexicon v2.2.0 在相同语料上的重测结果，斜体是原发布值；只有一个数值表示两次相同。v1.0.0 保留历史发布成绩。版本号均为 macOS 产品版本，旧发布产物和原始报告不改写。
 
-语料来自开发者自己的小说著作 [《永恒的舞动》](https://www.qidian.com/book/1037259117/)。两次测量均在 Apple M2 Pro、32 GiB 内存、macOS 27.0.1 上以原生 arm64 串行测量，使用简体词库及 8 个模型线程。本轮最终测量在暂停屏幕共享后开始，跨轮耗时仍可能受系统负载影响；下表保留实际测量值。
+语料来自开发者自己的小说著作 [《永恒的舞动》](https://www.qidian.com/book/1037259117/)。测试在 Apple M2 Pro、32 GiB 内存、macOS 27.0.1 上以原生 arm64 串行运行，使用简体词库及 6 个模型线程（旧版为 8 个）。本轮保留屏幕共享负载；耗时受系统负载影响，不将跨轮波动视作代码优化的证明。
+
+本轮测量日期：**2026-10-29 至 2026-10-30（UTC+8）**。
 
 ### Cassotis 长句语料基准测试-16300
 
 | macOS 版本 | Top1 | Top2 | 平均 (ms) | P50 (ms) | P95 (ms) | 最大 (ms) |
 | --- | --- | --- | --- | --- | --- | --- |
+| `v2.5.0` | 13,441/16,300 (82.46%) | 14,358/16,300 (88.09%) | 86.055 | 81 | 146 | 512 |
 | `v2.1.0` | 13,435/16,300 (82.42%) | 14,314/16,300 (87.82%) | 87.889 | 84 | 147 | 519 |
 | `v2.0.0` | 13,390/16,300 (82.15%)<br>*13,397/16,300 (82.19%)* | 14,273/16,300 (87.56%)<br>*14,281/16,300 (87.61%)* | 90.024<br>*94.084* | 86<br>*90* | 149<br>*154* | 517<br>*523* |
 | `v1.0.0` | 12,941/16,300 (79.39%) | 13,534/16,300 (83.03%) | 85.043 | 79 | 148 | 567 |
@@ -20,6 +23,7 @@
 
 | macOS 版本 | Top1 | Top2 | 竞争词 Top1 | 竞争词 Top2 | 平均 (ms) | P50 (ms) | P95 (ms) | 最大 (ms) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `v2.5.0` | 63,463/65,000 (97.64%) | 64,436/65,000 (99.13%) | 10,512/11,685 (89.96%) | 11,223/11,685 (96.05%) | 7.202 | 5 | 20 | 66 |
 | `v2.1.0` | 63,455/65,000 (97.62%) | 64,423/65,000 (99.11%) | 10,539/11,685 (90.19%) | 11,225/11,685 (96.06%) | 7.652 | 5 | 21 | 70 |
 | `v2.0.0` | 63,348/65,000 (97.46%)<br>*63,362/65,000 (97.48%)* | 64,346/65,000 (98.99%)<br>*64,291/65,000 (98.91%)* | 10,504/11,685 (89.89%)<br>*10,533/11,728 (89.81%)* | 11,228/11,685 (96.09%)<br>*11,244/11,728 (95.87%)* | 7.281<br>*7.232* | 5 | 20 | 79<br>*62* |
 | `v1.0.0` | 63,036/65,000 (96.98%) | 64,103/65,000 (98.62%) | 10,488/11,728 (89.43%) | 11,196/11,728 (95.46%) | 6.801 | 6 | 17 | 40 |
@@ -30,11 +34,12 @@
 
 | macOS 版本 | 补全命中率 | 平均节省按键 | 逐键稳定率 | 按键 P95 (ms) | 最终显示 P95 (ms) |
 | --- | --- | --- | --- | --- | --- |
+| `v2.5.0` | 10,513/12,831 (81.93%) | 2.635 | 2,153/2,216 (97.16%) | 2.137 | 19.915 |
 | `v2.1.0` | 10,513/12,831 (81.93%) | 2.636 | 2,154/2,217 (97.16%) | 2.035 | 18.451 |
 | `v2.0.0` | 10,466/12,831 (81.57%)<br>*10,457/12,831 (81.50%)* | 2.633<br>*2.632* | 2,134/2,198 (97.09%)<br>*2,133/2,195 (97.18%)* | 1.982<br>*2.035* | 19.357<br>*21.352* |
 | `v1.0.0` | 10,331/12,831 (80.52%) | 2.638 | 2,117/2,180 (97.11%) | 1.213 | 9.385 |
 
-平均节省按键按每次正确补全计算，已扣除接受补全的一次按键；逐键稳定率只统计继续输入后原补全仍兼容的机会。 v2.1.0 短词补全累计净节省 27,712 键；v2.0.0 同语料重测为 27,553 键，原发布值为 27,525 键。
+平均节省按键按每次正确补全计算，已扣除接受补全的一次按键；逐键稳定率只统计继续输入后原补全仍兼容的机会。 v2.5.0 短词补全累计净节省 27,706 键；v2.1.0 为 27,712 键；v2.0.0 同语料重测为 27,553 键，原发布值为 27,525 键。
 
 ### Cassotis 长句一键补全基准测试-16300
 
@@ -42,6 +47,7 @@
 
 | macOS 版本 | 局部续写命中率 | 预测提示覆盖率 | 总节省按键 | P95 (ms) |
 | --- | --- | --- | --- | --- |
+| `v2.5.0` | 3,903/16,300 (23.94%) | 16,144/16,300 (99.04%) | 9,627 | 146 |
 | `v2.1.0` | 3,877/16,300 (23.79%) | 16,139/16,300 (99.01%) | 9,597 | 148 |
 | `v2.0.0` | 3,771/16,300 (23.13%)<br>*3,768/16,300 (23.12%)* | 16,111/16,300 (98.84%)<br>*16,113/16,300 (98.85%)* | 9,303<br>*9,293* | 143<br>*149* |
 | `v1.0.0` | 3,539/16,300 (21.71%) | 15,812/16,300 (97.01%) | 7,539 | 131 |
@@ -56,44 +62,46 @@
 
 长句排名分别执行确定性工作量准确率轨和生产计时轨；短词执行无上下文与有上下文两条完整轨；长句 Tab 分别执行无结果时限的 0 ms 对照和 80 ms 生产预算。所有模型均启用，排名失败不回退为无模型成绩。计时顺序为解码、最终候选读取与修正、可见补全；Oracle 诊断在计时后执行。生产轨保留共享模型的 100 ms 取消时限；准确率对照关闭时间截止。节点预算和词库／读音保护在两条轨中都保留。
 
-环境为 Apple M2 Pro、32 GiB、macOS 27.0.1（26A434）、FPC 3.2.2、Xcode 27.0、ORT 1.20.1，原生 arm64，模型使用 8 个推理线程。Darwin 使用 `mach_absolute_time`；短词 Tab 以微秒采样后换算毫秒，百分位使用 nearest rank。
+环境为 Apple M2 Pro、32 GiB、macOS 27.0.1（26A434）、FPC 3.2.2、Xcode 27.0、ORT 1.20.1，原生 arm64，模型使用 6 个推理线程；旧版测量使用 8 个。Darwin 使用 `mach_absolute_time`；短词 Tab 以微秒采样后换算毫秒，百分位使用 nearest rank。
 
 | 固定项 | SHA-256 |
 | --- | --- |
 | 长句 16,300 原始语料 | `504d9fdbdad5dd22c41f1611a63d1ce8ccd6df7307ee2e28f904f48bdd23eb20` |
 | 短词 65,000 原始语料 | `f8c9e3cf44009dfd92ca244e5eda695e1e47117ec3de97e284dcafd201be2130` |
-| macOS SC 数据库 | `98487c0c7e035f2f8e7f401d92f4908585eb62d239255862fa7d3b1c056ecfcb` |
-| macOS TC 数据库 | `da23a9635a7b4e025e62fbdb40b715eadec27c8b525f23d268b1bfc8259d246f` |
+| macOS SC 数据库 | `6b5dbdb12aaa45d55d5455df1fbcc00e3fe965272caa78ff697875b203b5f4f0` |
+| macOS TC 数据库 | `5396821b696a55e700989175335b881f401739a3d19be5f6a9d489299e2717c5` |
 
-Lexicon v2.4.0 正式版的 26 个生成输入重建 schema 24，简繁基础词条为 **259,524 / 260,404**。App 只包含一个 ONNX 图、词表、拼音读音表和运行清单；本轮权重不变。源码中的四个模型分片按摘要合并，不随安装应用分发。新增 OpenCC 字符表用于繁体字形适配，是源码映射，不增加神经模型。
+Lexicon v2.5.0 正式版的 28 个生成输入重建 schema 24，简繁基础词条为 **261,149 / 262,028**。App 只包含一个 ONNX 图、词表、拼音读音表和运行清单；本轮权重不变。源码中的四个模型分片按摘要合并，不随安装应用分发。保留 OpenCC 字符表用于繁体字形适配，是源码映射，不增加神经模型。
 
-## macOS v2.1.0 详细结果
+v2.5.0 按最快核心层级确定模型线程数量，查询不可用时回退到物理／系统 CPU 计数，保留 4–8 个线程的边界。实际调度仍由 macOS 管理。本机的 8／6／4 线程隔离对照显示 6 线程更合适；表中均为采用正式线程策略后重新冻结程序、完整运行全部语料的结果，不使用这些小样本对照代替完整成绩。共享模型权重、结果时限和节点预算保持不变。
 
-无上下文短词 Top1 / Top2 为 **61,235 / 63,701**，Top5 / Top9 为 64,860 / 64,956；有上下文 Top5 / Top9 为 64,917 / 64,956。无上下文竞争词 Top1 / Top2 为 8,940 / 10,652，分母为 11,685。
+## macOS v2.5.0 详细结果
 
-新增的无上文常用词保护优先保留通用语料中更常见的首选。这存在取舍：相对前一正式版在相同语料上的重测，无上文竞争词 Top1 从 8,887 增至 8,940，Top2 从 10,701 降至 10,652。这不是所有指标都提升的更新；有上文时不使用这条保护规则。
+无上下文短词 Top1 / Top2 为 **61,357 / 63,736**，Top5 / Top9 为 64,862 / 64,957；有上下文 Top5 / Top9 为 64,921 / 64,957。无上下文竞争词 Top1 / Top2 为 8,956 / 10,659，分母为 11,685。
 
-短词 Tab 为 **10,513/12,831 (81.93%)** 命中、12,796 次显示、27,712 净节键，稳定 2,154/2,217 (97.16%)；签名 `FC558A6199FC7A64`。
+相对 macOS v2.1.0，无上下文 Top1 / Top2 从 61,235 / 63,701 提高；有上下文总体 Top1 / Top2 也提高，但竞争词子集从 10,539 / 11,225 变为 10,512 / 11,223。这些是不同子集的结果，不概括为所有指标均提升。无上下文竞争词 Top2 仍低于 v2.0.0 同语料重测的 10,701，历史取舍继续保留。
+
+短词 Tab 为 **10,513/12,831 (81.93%)** 命中、12,796 次显示、27,706 净节键，稳定 2,153/2,216 (97.16%)；签名 `0864EFCC9019779F`。
 
 | 长句补全结果预算 | 预测显示 | 精确拼接显示 | 预测命中 | 净节键 | 稳定 / 兼容对 |
 | --- | --- | --- | --- | --- | --- |
-| 0 ms，准确率对照 | 16,146 | 0 | 3,879 | 9,601 | 355 / 3,596 |
-| 80 ms，生产预算 | 16,139 | 0 | 3,877 | 9,597 | 354 / 3,594 |
+| 0 ms，准确率对照 | 16,150 | 0 | 3,905 | 9,633 | 355 / 3,597 |
+| 80 ms，生产预算 | 16,144 | 0 | 3,903 | 9,627 | 355 / 3,597 |
 
-签名分别为 `3103B71C0BC4757C` / `AEE3D30EFB391AE8`；预测未命中分别为 12,267 / 12,262。精确拼接提示不计预测命中和节键，其中与目标已输入前缀相同的提示为 0 / 0。
+签名分别为 `859183D39CE7FFD9` / `50402C3EA75AECC3`；预测未命中分别为 12,245 / 12,241。精确拼接不计入预测命中和节键。
 
-生产轨神经请求 / 接受 / 应用为 16,225 / 16,041 / 15,859，完整句命中 210。解码 / 最终候选读取 / 可见补全处理平均为 7.245 / 47.278 / 35.158 ms。
+生产轨神经请求 / 接受 / 应用为 16,228 / 16,052 / 15,865，完整句命中 205。解码 / 最终候选读取 / 可见补全处理平均为 7.410 / 45.533 / 32.982 ms。
 
 | 本机延迟，ms | 平均 | P50 | P95 | 最大 |
 | --- | --- | --- | --- | --- |
-| 长句，生产整句查询 | 87.889 | 84 | 147 | 519 |
-| 短词，无上下文 | 5.009 | 3 | 14 | 48 |
-| 短词，有上下文 | 7.652 | 5 | 21 | 70 |
-| 短词 Tab 最终显示 | 3.746 | 0.753 | 18.451 | 63.224 |
-| 长句 Tab，0 ms | 86.587 | 82 | 145 | 446 |
-| 长句 Tab，80 ms | 89.681 | 86 | 148 | 442 |
+| 长句，生产整句查询 | 86.055 | 81 | 146 | 512 |
+| 短词，无上下文 | 4.962 | 3 | 13 | 79 |
+| 短词，有上下文 | 7.202 | 5 | 20 | 66 |
+| 短词 Tab 最终显示 | 3.996 | 0.790 | 19.915 | 100.569 |
+| 长句 Tab，0 ms | 84.019 | 79 | 143 | 376 |
+| 长句 Tab，80 ms | 85.925 | 81 | 146 | 399 |
 
-排名进程最大 RSS / HWM 为 **1,407,824 / 1,407,856 KiB**。这是整个测试进程的测量，不是单独模型内存，也不能与 physical footprint 混写。
+本轮排名进程观测到的最大 RSS / HWM 为 **1,416,912 / 1,416,944 KiB**。这是整个测试进程的测量，不是单独模型内存，也不能与 physical footprint 混写。
 
 The methodology below describes the macOS benchmarks. Version numbers refer to macOS releases; cross-platform provenance is recorded separately at the end.
 
@@ -117,7 +125,7 @@ All macOS versions in these tables use the same equivalence rule for visible ran
 
 Since macOS v2.0.0, the engine uses one shared character-level language model of about 150 million parameters for long and short ranking, word completion, continuation and Pinyin-constrained correction. The deployed graph uses static int8 quantization, float16 input embeddings and a custom attention operator; the engine retains seven compact parameter sets. All suites load these deployed assets. No benchmark-specific model is substituted.
 
-The historical macOS v1.0.0 release used eleven neural graphs, including separate correction and continuation models. macOS v2.0.0 consolidated them into the shared model. The v2.0.0 and v2.1.0 runs use the same neural weights and background short Tab reranking; this round changes the engine and dictionaries.
+The historical macOS v1.0.0 release used eleven neural graphs, including separate correction and continuation models. macOS v2.0.0 consolidated them into the shared model. The v2.0.0, v2.1.0 and v2.5.0 runs use the same neural weights and background short Tab reranking; this round changes the engine and dictionaries.
 
 ## Long Sentence Benchmark-16300
 
@@ -254,7 +262,7 @@ These values quantify complete-query engine performance and long-tail cost. They
 
 ## Result Publication
 
-The four benchmark tables appear in [README.md](README.md), [简体中文](README.zh-Hans.md) and [繁體中文](README.zh-Hant.md), with macOS v2.1.0 and its preceding release, v2.0.0. The previous runtime was re-measured on the corrected cases; italic values preserve its original release measurements. Keep each release’s measured latency, corpus identity and scoring rule. A retrospective scoring change must be labelled and retain the original values; it is not a new engine run. Historical release artifacts and reports remain unchanged.
+The four benchmark tables appear in [README.md](README.md), [简体中文](README.zh-Hans.md) and [繁體中文](README.zh-Hant.md), with macOS v2.5.0 and its preceding release, v2.1.0. The historical v2.0.0 runtime was re-measured on the corrected cases on October 23; italic values preserve its original release measurements. Keep each release’s measured latency, corpus identity and scoring rule. A retrospective scoring change must be labelled and retain the original values; it is not a new engine run. Historical release artifacts and reports remain unchanged.
 
 ## Notes
 
@@ -262,20 +270,20 @@ The benchmarks are expected to evolve with the IME. Future benchmark variants ma
 
 ## 上游来源与对齐记录（补充）
 
-共享引擎源于 [Cassotis IME Windows 版](https://github.com/shenmin/cassotis-ime)，词库与模型来自 [Cassotis Lexicon](https://github.com/shenmin/cassotis-lexicon)。本轮对齐正式发布的 Windows 与 Lexicon v2.4.0 标签；上一版 macOS v2.0.0 对齐 v2.2.0。上文主表为 macOS 自身的实测结果。
+共享引擎源于 [Cassotis IME Windows 版](https://github.com/shenmin/cassotis-ime)，词库与模型来自 [Cassotis Lexicon](https://github.com/shenmin/cassotis-lexicon)。本轮对齐正式发布的 Windows 与 Lexicon v2.5.0 标签；上一版 macOS v2.1.0 对齐 v2.4.0。主表为 macOS 自身的实测结果。
 
-以下比较 Windows v2.4.0 正式版 README 公布的计数；两平台均采用第二次读音修正后的语料。
+以下比较 Windows v2.5.0 正式版 README 公布的计数；两平台采用相同的修正后语料。
 
-| 指标 | macOS v2.1.0 | Windows v2.4.0 | 计数差 |
+| 指标 | macOS v2.5.0 | Windows v2.5.0 | 计数差 |
 | --- | --- | --- | --- |
-| 长句 Top1 | 13,435 | 13,435 | 0 |
-| 长句 Top2 | 14,314 | 14,314 | 0 |
-| 上下文短词 Top1 | 63,455 | 63,455 | 0 |
-| 上下文短词 Top2 | 64,423 | 64,423 | 0 |
-| 竞争词 Top1 | 10,539 | 10,539 | 0 |
-| 竞争词 Top2 | 11,225 | 11,225 | 0 |
+| 长句 Top1 | 13,441 | 13,442 | -1 |
+| 长句 Top2 | 14,358 | 14,358 | 0 |
+| 上下文短词 Top1 | 63,463 | 63,463 | 0 |
+| 上下文短词 Top2 | 64,436 | 64,436 | 0 |
+| 竞争词 Top1 | 10,512 | 10,512 | 0 |
+| 竞争词 Top2 | 11,223 | 11,223 | 0 |
 | 短词 Tab 命中 | 10,513 | 10,512 | +1 |
-| 长句预测命中 | 3,877 | 3,876 | +1 |
-| 长句净节省按键 | 9,597 | 9,576 | +21 |
+| 长句预测命中 | 3,903 | 3,896 | +7 |
+| 长句净节省按键 | 9,627 | 9,592 | +35 |
 
-跨平台计数差异如实保留。两平台耗时来自不同主机，不作为同机性能对比。
+跨平台质量计数差异如实保留，正向差异沿用接受政策。两平台耗时来自不同主机，不作为同机性能对比。
