@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.5.0 (build 6, unreleased)
+## 2.5.0 (build 6, 2026-10-30)
 
 - Use general-text word frequencies and the updated short-word ranking tree, retaining common no-context choices while giving context more room to decide.
 - Page through all single-character candidates, including syllables with more than 256 readings; fix repeated candidates across pages and restore 嗯 / 噷 for ng / hm.

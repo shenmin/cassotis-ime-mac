@@ -20,7 +20,7 @@ Cassotis IME for macOS (言泉输入法 macOS 版) is an experimental Chinese Pi
 
 macOS 2.5.0 (build 6) follows Cassotis IME and Cassotis Lexicon v2.5.0: the engine and dictionaries follow the published v2.5.0 release tags. The language model and compact ranking units remain shared with Windows. It supports Apple silicon and macOS 14 or later. See [COMPATIBILITY.md](COMPATIBILITY.md) for the tested environments and known limitations, and the [website](https://www.yanquan.org/mac) for an overview.
 
-The v2.5.0 source is being prepared for release. The download below remains the latest published installer.
+Download the [v2.5.0 installer](https://github.com/shenmin/cassotis-ime-mac/releases/download/v2.5.0/cassotis-ime-macos-2.5.0-arm64-installer-signed.dmg) or read the [release notes](https://github.com/shenmin/cassotis-ime-mac/releases/tag/v2.5.0).
 
 The project focus is:
 - keep the macOS engine aligned with each Windows release and verify the alignment on the same benchmarks,
