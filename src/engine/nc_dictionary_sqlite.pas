@@ -186,6 +186,7 @@ type
         m_normalized_base_entry_cache: TDictionary<string, Boolean>;
         m_word_frequency_cache: TDictionary<string, Integer>;
         m_word_frequency_missing: Boolean;
+        m_stmt_word_frequency: Psqlite3_stmt;
         m_single_char_readings_cache: TDictionary<string, TArray<string>>;
         m_explicit_user_entry_cache: TDictionary<string, Boolean>;
         m_literal_user_entry_cache: TDictionary<string, Boolean>;
@@ -2770,6 +2771,7 @@ begin
     m_normalized_base_entry_cache := TDictionary<string, Boolean>.Create;
     m_word_frequency_cache := TDictionary<string, Integer>.Create;
     m_word_frequency_missing := False;
+    m_stmt_word_frequency := nil;
     m_single_char_readings_cache := TDictionary<string, TArray<string>>.Create;
     m_explicit_user_entry_cache := TDictionary<string, Boolean>.Create;
     m_literal_user_entry_cache := TDictionary<string, Boolean>.Create;
@@ -11428,6 +11430,11 @@ procedure TncSqliteDictionary.close;
 begin
     clear_dictionary_lookup_caches;
     clear_cached_user_statements;
+    if (m_stmt_word_frequency <> nil) and (m_base_connection <> nil) then
+    begin
+        m_base_connection.finalize(m_stmt_word_frequency);
+        m_stmt_word_frequency := nil;
+    end;
     if (m_stmt_base_query_path_bonus <> nil) and (m_base_connection <> nil) then
     begin
         m_base_connection.finalize(m_stmt_base_query_path_bonus);
@@ -19631,7 +19638,6 @@ const
     c_cache_limit = 16384;
 var
     text_key: string;
-    stmt: Psqlite3_stmt;
 begin
     Result := 0;
     text_key := Trim(text);
@@ -19640,20 +19646,21 @@ begin
         Exit;
     if (m_word_frequency_cache <> nil) and m_word_frequency_cache.TryGetValue(text_key, Result) then
         Exit;
-    stmt := nil;
+    // A dictionary built before the table has none: every word scores 0.
+    // Reuse the indexed query while checking the words of a candidate pool.
+    if (m_stmt_word_frequency = nil) and
+        not m_base_connection.prepare(select_sql, m_stmt_word_frequency) then
+    begin
+        m_word_frequency_missing := True;
+        Exit;
+    end;
     try
-        // A dictionary built before the table has none: every word scores 0.
-        if not m_base_connection.prepare(select_sql, stmt) then
-        begin
-            m_word_frequency_missing := True;
-            Exit;
-        end;
-        if m_base_connection.BindText(stmt, 1, text_key) and
-            (m_base_connection.step(stmt) = SQLITE_ROW) then
-            Result := m_base_connection.ColumnInt(stmt, 0);
+        if m_base_connection.BindText(m_stmt_word_frequency, 1, text_key) and
+            (m_base_connection.step(m_stmt_word_frequency) = SQLITE_ROW) then
+            Result := m_base_connection.ColumnInt(m_stmt_word_frequency, 0);
     finally
-        if stmt <> nil then
-            m_base_connection.finalize(stmt);
+        m_base_connection.reset(m_stmt_word_frequency);
+        m_base_connection.clear_bindings(m_stmt_word_frequency);
     end;
     if m_word_frequency_cache <> nil then
     begin

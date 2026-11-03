@@ -8,7 +8,7 @@ interface
 
 const
     c_product_name = 'Cassotis IME - 言泉输入法';
-    c_engine_version = '2.5.0';
+    c_engine_version = '2.6.0';
     c_ipc_protocol_major = 1;
     c_ipc_protocol_minor = 0;
 

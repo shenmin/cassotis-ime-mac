@@ -10,7 +10,7 @@
 ./scripts/check_environment.sh
 ```
 
-词库是独立的 [Cassotis Lexicon](https://github.com/shenmin/cassotis-lexicon) 项目。检出其正式发布的 `v2.5.0` 标签后，用环境变量指定位置，无需放在固定目录或本仓库旁边。构建会按 `data/lexicon-inputs.json` 核对输入：
+词库是独立的 [Cassotis Lexicon](https://github.com/shenmin/cassotis-lexicon) 项目。检出其正式发布的 `v2.6.0` 标签后，用环境变量指定位置，无需放在固定目录或本仓库旁边。构建会按 `data/lexicon-inputs.json` 核对输入：
 
 ```sh
 export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
@@ -64,7 +64,7 @@ export CASSOTIS_LEXICON_ROOT="/path/to/cassotis-lexicon"
 
 DMG 图形安装器在文件安装成功后请求系统启用输入法，按需显示 macOS 的授权确认。确认启用后可直接从输入菜单选用；未成功时提供“重试启用”和键盘设置入口。命令行安装保留上述手动添加步骤。
 
-Developer ID 签名的 DMG 固定命名为 `cassotis-ime-macos-<版本号>-arm64-installer-signed.dmg`，例如 `cassotis-ime-macos-2.5.0-arm64-installer-signed.dmg`。后续版本只替换版本号；完成公证后也保持此名称。未指定签名身份的本机构建使用 `-installer-local.dmg` 后缀。
+Developer ID 签名的 DMG 固定命名为 `cassotis-ime-macos-<版本号>-arm64-installer-signed.dmg`，例如 `cassotis-ime-macos-2.6.0-arm64-installer-signed.dmg`。后续版本只替换版本号；完成公证后也保持此名称。未指定签名身份的本机构建使用 `-installer-local.dmg` 后缀。
 
 DMG 附带普通与 Retina 分辨率的背景，自动保存安装器与说明文件的位置。打包步骤需要已登录的 macOS 桌面，由系统 Finder 设置镜像外观；如系统首次询问终端是否可以控制 Finder，请允许。背景已随源码提供，不需要下载字体或访问官网。临时镜像在完成或失败后自动清理；若系统仍占用挂载卷，脚本会保留并显示其位置。
 

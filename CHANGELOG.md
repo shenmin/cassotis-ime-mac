@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.6.0 (build 7, unreleased)
+
+- Improve complete-sentence ranking with six non-overlapping word-frequency features and updated long-choice parameters.
+- Jointly weigh Pinyin-constrained corrections and shared language-model scores; compare gated, high-weight homophone word replacements without adding a neural model.
+- Use context-specific short-word policies, retaining a clearly stronger runner-up from existing scores while protecting user choices.
+- Keep single-character candidates in usage order without context. Do not learn a trailing single character separately after partial selection; continue learning the complete committed phrase.
+- Append selectable alternative syllable prefixes after a whole syllable’s own characters, and suppress unlikely split particle phrases when they would lead the page.
+- Update to Windows and Cassotis Lexicon v2.6.0, including everyday vocabulary, revised word-frequency counts and separate simplified/traditional reading corrections.
+- Reuse the indexed word-frequency query across candidate comparisons and release its statement when the dictionary closes.
+
 ## 2.5.0 (build 6, 2026-10-30)
 
 - Use general-text word frequencies and the updated short-word ranking tree, retaining common no-context choices while giving context more room to decide.
