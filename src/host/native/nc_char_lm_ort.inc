@@ -1,7 +1,7 @@
 // Shared character language model (nc_lm_*). Included after
 // the ORT helpers.
 //
-// The graph (tools/char_lm_onnx.py) takes ids, positions, an attention mask that
+// The deployed graph takes ids, positions, an attention mask that
 // is combined with the causal mask, and per layer the keys and values of
 // earlier tokens; it returns those of the new tokens. Scoring packs the
 // candidates into one trie (every node after its ancestors, position = depth,
@@ -893,7 +893,7 @@ extern "C" CASSOTIS_EXPORT void* nc_lm_create(
         h->head_dim = past_shape[4];
         // The caches here append what a run returns: the graph has to return
         // the keys and values of its new tokens only, and a token's numbers
-        // must not depend on the run (tools/char_lm_onnx.py static_int8).
+        // must not depend on the run; the deployed graph uses static int8 ranges.
         const auto cache = h->session->GetModelMetadata().LookupCustomMetadataMapAllocated(
             "cassotis_lm_cache", allocator);
         if (!cache || std::string(cache.get()) != "new_tokens")

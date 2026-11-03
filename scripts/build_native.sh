@@ -31,7 +31,7 @@ xcrun clang++ -arch "$arch" -mmacosx-version-min=14.0 -std=c++20 -O2 -g \
     -Wl,-install_name,@rpath/libcassotis_ort.dylib \
     -Wl,-rpath,@loader_path -o "$bin/libcassotis_ort.dylib"
 cp "$ort/libonnxruntime.1.20.1.dylib" "$bin/"
-# Freeze the same ad hoc signatures before tests and bundle assembly. The
+# Apply consistent ad hoc signatures before bundle assembly. The
 # linker's initial signature differs from codesign's application signature.
 for library in libcassotis_ort.dylib libonnxruntime.1.20.1.dylib; do
     codesign --force --sign - "$bin/$library"

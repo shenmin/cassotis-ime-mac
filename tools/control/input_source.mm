@@ -53,7 +53,7 @@ int main(int argc,const char **argv) {
                 if([app.bundleURL.path isEqual:installed]) [app terminate];
             [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.4]];
             // Only this user's executable files inside the installed Cassotis
-            // bundle are eligible. Benchmarks and other input methods stay live.
+            // bundle are eligible. Other engine instances and input methods stay live.
             int bytes=proc_listpids(PROC_UID_ONLY,getuid(),nullptr,0);
             std::vector<pid_t> pids(size_t(bytes/sizeof(pid_t)+32));
             bytes=proc_listpids(PROC_UID_ONLY,getuid(),pids.data(),int(pids.size()*sizeof(pid_t)));

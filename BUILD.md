@@ -78,4 +78,4 @@ DMG 附带普通与 Retina 分辨率的背景，自动保存安装器与说明�
 
 评分方法、测试环境和汇总结果见 [BENCHMARK.md](BENCHMARK.md)。测试程序、桌面自动化、基准工具、语料和逐例诊断不随源码分发。
 
-Application assembly projects model manifests onto the same runtime-field allowlist as source export. Runtime thresholds, model hashes and licensing remain intact; training paths and evaluation records are excluded from the installed bundle.
+应用组装时会校验模型清单，只保留运行参数、模型校验值和来源信息。模型清单不包含训练路径或逐例评估记录。

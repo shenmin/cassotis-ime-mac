@@ -154,15 +154,10 @@ const
     { Short-word choice with left context: the visible exact entries for the
       input (prefix completions excluded), at most this many in page order. }
     c_char_lm_short_choice_limit = 8;
-    { The choice looks at the context-free scores first, which the host keeps.
-      When the ranker's best candidate leads the next by at least this on
-      those alone, the call with the context is left out (a fifth of the
-      calls). The tree that reads the general text's word frequencies leads
-      by more without a context: with it the context overturned a lead of 5
-      to 6 in 25 cases of the judged sets (fiction, general text, chat and the
-      official set), every one to the right word, and a lead of 6 to 7 in 5,
-      3 of them right (out/ctx_transition_20261029, overturn.py). At 5 the
-      tree before it was overturned in 2 of 30,000 held-out fiction cases. }
+    { The choice first uses the context-free scores cached by the host.
+      Skip the context call only when the best candidate leads the next by
+      at least this margin. General text frequencies can produce wider
+      context-free margins, so weaker leads still need contextual scoring. }
     c_char_lm_short_plain_lead = 6.0;
     { Tab continuation: show the most probable candidate when P(correct) is at
       least this. Chosen on the 7,996-sentence fiction Tab dev set (5-fold CV
