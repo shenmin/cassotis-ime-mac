@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.6.0 (build 7, unreleased)
+## 2.6.0 (build 7, 2026-11-03)
 
 - Improve complete-sentence ranking with six non-overlapping word-frequency features and updated long-choice parameters.
 - Jointly weigh Pinyin-constrained corrections and shared language-model scores; compare gated, high-weight homophone word replacements without adding a neural model.

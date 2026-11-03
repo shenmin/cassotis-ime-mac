@@ -2,7 +2,7 @@
 
 Version 2.6.0 (build 7) targets Apple Silicon and macOS 14 or later. Build and desktop validation used macOS 27.0.1, an Apple M2 Pro, Xcode 27.0 and Free Pascal 3.2.2.
 
-Version 2.6.0 qualification includes a fresh full benchmark, 1,020 core tests, independent model-score checks, signed/notarized packaging, an upgrade with simulated download quarantine, native/WebKit/secure-field input, settings autosave, browser/Electron/Terminal handoffs and installed-engine key replay. The engine and dictionaries follow Windows / Cassotis Lexicon v2.6.0. This is an upgrade candidate on the existing test host; first-add consent, clean-machine installation and the minimum supported macOS versions were not re-qualified in this round. Earlier installation lifecycle results remain historical tests of the unchanged installer implementation.
+Version 2.6.0 qualification includes a fresh full benchmark, 1,020 core tests, independent model-score checks, signed/notarized packaging, an upgrade with simulated download quarantine, native/WebKit/secure-field input, settings autosave, browser/Electron/Terminal handoffs and installed-engine key replay. The engine and dictionaries follow Windows / Cassotis Lexicon v2.6.0. Release qualification additionally covers current-user uninstall/reinstall, registration and startup failure rollback, quarantined first input-source addition through Settings, cancellation/retry and a final graphical upgrade. Settings, custom phrases, learning data and unrelated input sources were preserved. These checks use the existing test host; automatic first-add consent, clean-machine installation and the minimum supported macOS versions have not been qualified in this round.
 
 | Environment | Validation status |
 | --- | --- |

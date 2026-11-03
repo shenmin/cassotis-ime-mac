@@ -20,7 +20,7 @@ Cassotis IME macOS 版（言泉輸入法 macOS 版）是一個面向 Apple 晶�
 
 macOS 2.6.0（build 7）對標 Cassotis IME 與 Cassotis Lexicon v2.6.0：引擎和詞庫跟進已發布的 v2.6.0 標籤；語言模型和緊湊排序單元繼續與 Windows 版共用。它支援 Apple 晶片和 macOS 14 及以上。已驗證的環境和已知限制請見 [COMPATIBILITY.md](COMPATIBILITY.md)，產品介紹請見[官網](https://www.yanquan.org/mac)。
 
-目前原始碼為 2.6.0 發布準備版，最新已發布安裝套件仍為 2.5.0。下載 [v2.5.0 安裝套件](https://github.com/shenmin/cassotis-ime-mac/releases/download/v2.5.0/cassotis-ime-macos-2.5.0-arm64-installer-signed.dmg)，或查看[更新說明](https://github.com/shenmin/cassotis-ime-mac/releases/tag/v2.5.0)。
+下載 [v2.6.0 安裝套件](https://github.com/shenmin/cassotis-ime-mac/releases/download/v2.6.0/cassotis-ime-macos-2.6.0-arm64-installer-signed.dmg)，或查看[更新說明](https://github.com/shenmin/cassotis-ime-mac/releases/tag/v2.6.0)。
 
 專案目前重點：
 - 與 Windows 版的每個版本保持對齊，並在同一套基準上核對；
