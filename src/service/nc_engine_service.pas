@@ -258,6 +258,7 @@ begin
     config.candidate_page_key_scheme :=
         state.candidate_page_key_scheme;
     config.one_key_completion_key := state.one_key_completion_key;
+    config.second_third_candidate_keys := state.second_third_candidate_keys;
     config.debug_mode := state.debug_mode;
     config.shortcuts := state.shortcuts;
 end;
@@ -287,6 +288,8 @@ begin
         new_state.candidate_page_key_scheme) or
         (old_state.one_key_completion_key <>
         new_state.one_key_completion_key) or
+        (old_state.second_third_candidate_keys <>
+        new_state.second_third_candidate_keys) or
         (old_state.debug_mode <> new_state.debug_mode) or
         (not nc_shortcut_equal(old_state.shortcuts.input_mode_toggle,
         new_state.shortcuts.input_mode_toggle)) or
@@ -339,6 +342,7 @@ begin
         engine_config.candidate_page_key_scheme;
     next_state.one_key_completion_key :=
         engine_config.one_key_completion_key;
+    next_state.second_third_candidate_keys := engine_config.second_third_candidate_keys;
     next_state.debug_mode := engine_config.debug_mode;
     next_state.shortcuts := engine_config.shortcuts;
     if PersistentStateChanged(FState, next_state) then
@@ -787,6 +791,9 @@ var
     previous_state: TncEngineState;
     dictionary_changed: Boolean;
 begin
+    if state.second_third_candidate_keys <>
+        nc_normalize_second_third_candidate_keys(state.second_third_candidate_keys) then
+        Exit(False);
     if Length(state.custom_phrases) > c_custom_phrase_max_count then Exit(False);
     for phrase in state.custom_phrases do
         if (nc_custom_phrase_key(phrase.shortcut) <> phrase.shortcut) or

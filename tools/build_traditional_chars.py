@@ -17,6 +17,12 @@ are added by hand:
   reads zhu (著名, 顯著, 名著): the words of TWVariantsRevPhrases.txt that
   hold it and those in KEPT_EXTRA.
 
+A character TWVariants.txt writes for another (幺 -> 么) is written by
+Taiwan's text as well: 么 is the yao of 老么 and 么二 there, beside 麼 of the
+question word. It is listed in c_simplified_taiwan_written, which the
+conversion of a page or a commit leaves as it is (the dictionary writes 麼 where
+it reads me); a 么 the LM writes is still 麼 (什么, 怎么).
+
 TSCharacters.txt gives each traditional character its first simplified
 form. All at a fixed commit. Characters outside the Basic Multilingual Plane
 are left out: the tables map UTF-16 code units.
@@ -92,6 +98,7 @@ def main():
         elif bmp(forms[0]):
             to_traditional[ord(key)] = ord(forms[0])
     to_traditional[ord(PARTICLE_SIMPLIFIED)] = ord(PARTICLE_TRADITIONAL)
+    taiwan_written = sorted({ord(value) for value in taiwan.values() if bmp(value)} & set(to_traditional))
     kept = sorted({key for key, _ in entries(payloads['TWVariantsRevPhrases.txt'])
                    if PARTICLE_TRADITIONAL in key} | set(KEPT_EXTRA))
     t_keys = sorted(to_simplified)
@@ -107,7 +114,9 @@ def main():
               '  c_simplified_chars / c_simplified_traditional: a character traditional\n'
               '  text never writes and its traditional form, Taiwan\'s (為 for 为, 著 for\n'
               '  着). c_simplified_ambiguous: one that traditional text writes as well,\n'
-              '  beside other forms (后: 後 or 后).\n'
+              '  beside other forms (后: 後 or 后). c_simplified_taiwan_written: one of\n'
+              '  c_simplified_chars that Taiwan\'s text writes as a form of another (么 of\n'
+              '  幺: 老么), left as it is in pages and commits.\n'
               '  UTF-16 code units of the Basic Multilingual Plane only. }\n')
     text = '\n\n'.join([header.rstrip('\n'),
                         table('c_traditional_chars', t_keys),
@@ -115,10 +124,11 @@ def main():
                         string_table('c_traditional_kept_words', kept),
                         table('c_simplified_chars', s_keys),
                         table('c_simplified_traditional', [to_traditional[k] for k in s_keys]),
-                        table('c_simplified_ambiguous', sorted(ambiguous))]) + '\n'
+                        table('c_simplified_ambiguous', sorted(ambiguous)),
+                        table('c_simplified_taiwan_written', taiwan_written)]) + '\n'
     TARGET.write_text(text, encoding='utf-8', newline='\n')
     print(f'{TARGET}: {len(t_keys)} traditional, {len(s_keys)} simplified, '
-          f'{len(ambiguous)} ambiguous, {len(kept)} kept words')
+          f'{len(ambiguous)} ambiguous, {len(taiwan_written)} written by Taiwan, {len(kept)} kept words')
 
 
 if __name__ == '__main__':

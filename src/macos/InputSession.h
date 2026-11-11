@@ -17,6 +17,9 @@ FOUNDATION_EXPORT void CassotisSetRememberInputModeEnabled(BOOL enabled);
 FOUNDATION_EXPORT NSString *const CassotisInputModeHintKey;
 FOUNDATION_EXPORT BOOL CassotisInputModeHintEnabled(void);
 FOUNDATION_EXPORT void CassotisSetInputModeHintEnabled(BOOL enabled);
+FOUNDATION_EXPORT NSString *const CassotisCandidateAtInputStartKey;
+FOUNDATION_EXPORT BOOL CassotisCandidateAtInputStartEnabled(void);
+FOUNDATION_EXPORT void CassotisSetCandidateAtInputStartEnabled(BOOL enabled);
 // Called on the main thread by the system input-source notification observer.
 FOUNDATION_EXPORT void CassotisInputSourceDidChange(void);
 // Records the mode for the application that is frontmost right now; used by
@@ -68,6 +71,9 @@ NSRect CassotisInputModeFrameAtCaret(NSRect caret, NSSize size, NSRect visible,
 @property(nonatomic) uint8_t completionKey;
 @property(nonatomic, copy, nullable) void (^selection)(NSInteger index);
 @property(nonatomic, copy, nullable) void (^deletion)(NSInteger index);
+@property(nonatomic, copy, nullable) NSMenu * _Nullable (^contextMenu)(void);
+@property(nonatomic, readonly) BOOL trackingMenu;
+- (void)beginCompositionWithClient:(id)client;
 - (void)showResult:(const cassotis::Result &)result client:(id)client;
 @end
 
@@ -88,5 +94,6 @@ NSRect CassotisInputModeFrameAtCaret(NSRect caret, NSSize size, NSRect visible,
 - (void)showSettings;
 - (void)toggle:(NSInteger)action;
 - (NSMenu *)modeMenuWithTarget:(id)target action:(SEL)action;
+- (NSMenu *)inputMenu;
 @end
 NS_ASSUME_NONNULL_END

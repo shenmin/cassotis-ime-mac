@@ -1,5 +1,5 @@
 version: 1
-generated_at: "2026-10-17T00:00:00+00:00"
+generated_at: "2026-11-11T00:00:00+00:00"
 profile: external_broad
 sources:
   - id: chinese-poetry
@@ -532,3 +532,10 @@ sources:
     attribution_required: true
     raw_committed: false
     notes: 'Medical-domain candidate layer from THUOCL, kept separate from daily/chat phrase ranking and weighted more conservatively than the MeSH-validated medical entities.'
+  - id: lccc
+    name: LCCC-large (Large-scale Cleaned Chinese Conversation)
+    homepage: https://github.com/thu-coai/CDial-GPT
+    license: MIT
+    attribution_required: true
+    raw_committed: false
+    notes: 'Conversation word frequencies and language-model training. No utterances are redistributed. See LCCC-LICENSE.txt.'

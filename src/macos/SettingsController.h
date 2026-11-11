@@ -3,3 +3,5 @@
 + (instancetype)shared;
 - (void)reloadSettings;
 @end
+
+void CassotisShowAboutPanel(void);

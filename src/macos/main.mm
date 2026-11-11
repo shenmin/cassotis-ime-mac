@@ -6,21 +6,6 @@
 #import "SettingsController.h"
 #import "ProductName.h"
 
-static void CassotisShowAboutPanel(void) {
-    NSMutableParagraphStyle *paragraph=[[NSMutableParagraphStyle alloc] init];
-    paragraph.alignment=NSTextAlignmentCenter;
-    NSAttributedString *website=[[NSAttributedString alloc] initWithString:CassotisWebsiteURL().absoluteString
-        attributes:@{NSLinkAttributeName:CassotisWebsiteURL(),
-            NSFontAttributeName:[NSFont systemFontOfSize:12],
-            NSForegroundColorAttributeName:NSColor.linkColor,
-            NSUnderlineStyleAttributeName:@(NSUnderlineStyleSingle),
-            NSParagraphStyleAttributeName:paragraph}];
-    [NSApp orderFrontStandardAboutPanelWithOptions:@{
-        NSAboutPanelOptionApplicationName:CassotisProductName(),
-        NSAboutPanelOptionCredits:website}];
-    [NSApp activateIgnoringOtherApps:YES];
-}
-
 @interface CassotisInputController : IMKInputController
 @end
 @implementation CassotisInputController {
@@ -68,13 +53,18 @@ static void CassotisShowAboutPanel(void) {
     CassotisShowAboutPanel();
 }
 - (NSMenu *)menu {
+    // InputMethodKit forwards system-menu selectors to the input controller,
+    // regardless of the NSMenuItem target. The candidate context menu instead
+    // dispatches directly to the session, so keep these controller callbacks.
     NSMenu *menu=[_session modeMenuWithTarget:self action:@selector(modeAction:)];
     [menu addItem:NSMenuItem.separatorItem];
     NSMenuItem *settings=[[NSMenuItem alloc] initWithTitle:@"设置…" action:@selector(showPreferences:) keyEquivalent:@""];
     settings.target=self; [menu addItem:settings];
-    NSMenuItem *about=[[NSMenuItem alloc] initWithTitle:[@"关于" stringByAppendingString:CassotisShortName()] action:@selector(aboutAction:) keyEquivalent:@""];
+    NSMenuItem *about=[[NSMenuItem alloc] initWithTitle:[@"关于" stringByAppendingString:CassotisShortName()]
+        action:@selector(aboutAction:) keyEquivalent:@""];
     about.target=self; [menu addItem:about]; return menu;
 }
+
 @end
 
 @interface CassotisAppDelegate : NSObject <NSApplicationDelegate>

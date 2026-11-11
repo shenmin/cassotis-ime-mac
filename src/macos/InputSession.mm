@@ -311,6 +311,7 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
         __weak CassotisInputSession *weak=self;
         _panel.selection=^(NSInteger index){ [weak selectCandidate:index]; };
         _panel.deletion=^(NSInteger index){ [weak deleteCandidate:index]; };
+        _panel.contextMenu=^NSMenu *{ return [weak inputMenu]; };
     } return self;
 }
 - (void)dealloc { [NSNotificationCenter.defaultCenter removeObserver:self]; [_timer invalidate]; [_panel orderOut:nil]; [_modePanel dismiss]; }
@@ -556,6 +557,7 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     } catch(...) { [self recover]; }
 }
 - (void)apply:(const cassotis::Result &)r {
+    BOOL begins=(_result.preedit.empty() || !r.commit.empty()) && !r.preedit.empty();
     if(!r.preedit.empty()) [self cancelModeFeedback];
     _result=r;
     _pollAttempts=0;
@@ -563,6 +565,7 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     @try {
         if(!r.commit.empty()) [client insertText:str(r.commit) replacementRange:NSMakeRange(NSNotFound,NSNotFound)];
         if(self.client!=client || !_active) return;
+        if(begins) [_panel beginCompositionWithClient:client];
         NSMutableAttributedString *marked=[[NSMutableAttributedString alloc] initWithString:str(r.preedit)
             attributes:@{NSUnderlineStyleAttributeName:@(NSUnderlineStyleSingle)}];
         for(const auto &span:r.warnings) {
@@ -588,7 +591,7 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
         @catch(NSException *e) { (void)e; }
 }
 - (void)tick {
-    if(!_active) return;
+    if(!_active || _panel.trackingMenu) return;
     if(!_startupKeys.empty()) { [self replayStartup]; return; }
     if(!_engine->connected()) { [self ensureReady]; [self restoreRememberedInputModeIfPending]; [self presentModeFeedback]; return; }
     [self presentModeFeedback];
@@ -888,5 +891,20 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     _decimalInput={};
     [activeSession cancelModeFeedback]; [activeSession commit];
     [CassotisSettingsController.shared showWindow:nil];
+}
+- (void)menuModeAction:(id)sender {
+    NSMenuItem *item=[sender isKindOfClass:NSDictionary.class]?sender[kIMKCommandMenuItemName]:sender;
+    [self toggle:item.tag];
+}
+- (void)menuSettingsAction:(id)sender { (void)sender; [self showSettings]; }
+- (void)menuAboutAction:(id)sender { (void)sender; CassotisShowAboutPanel(); }
+- (NSMenu *)inputMenu {
+    NSMenu *menu=[self modeMenuWithTarget:self action:@selector(menuModeAction:)];
+    [menu addItem:NSMenuItem.separatorItem];
+    NSMenuItem *settings=[[NSMenuItem alloc] initWithTitle:@"设置…" action:@selector(menuSettingsAction:) keyEquivalent:@""];
+    settings.target=self; [menu addItem:settings];
+    NSMenuItem *about=[[NSMenuItem alloc] initWithTitle:[@"关于" stringByAppendingString:CassotisShortName()]
+        action:@selector(menuAboutAction:) keyEquivalent:@""];
+    about.target=self; [menu addItem:about]; return menu;
 }
 @end

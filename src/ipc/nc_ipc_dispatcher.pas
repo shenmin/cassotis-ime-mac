@@ -271,9 +271,9 @@ begin
                         c_ipc_dispatch_error_invalid_payload, payload_error);
                     Exit;
                 end;
-                // Older settings clients cannot express this field. Mode/page
-                // changes from them must not erase the user's phrase list.
-                if (request.payload[0] < 9) and (request.payload[1] = 0) then
+                // Partial and older clients must preserve fields they cannot
+                // express, including phrases and second/third candidate keys.
+                if (request.payload[0] < 11) and (request.payload[1] = 0) then
                 begin
                     if not FEngine.GetState(previous_state) then
                     begin
@@ -281,7 +281,10 @@ begin
                             c_ipc_dispatch_error_operation_failed, 'Unable to read engine state');
                         Exit;
                     end;
-                    engine_state.custom_phrases := previous_state.custom_phrases;
+                    if (request.payload[0] < 9) or (request.payload[0] = 10) then
+                        engine_state.custom_phrases := previous_state.custom_phrases;
+                    if request.payload[0] < 10 then
+                        engine_state.second_third_candidate_keys := previous_state.second_third_candidate_keys;
                 end;
                 operation_succeeded := FEngine.SetState(engine_state);
                 if not operation_succeeded then

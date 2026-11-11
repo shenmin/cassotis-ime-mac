@@ -15,7 +15,8 @@ const
     c_ipc_engine_state_fuzzy_schema_version = 2;
     c_ipc_engine_state_shortcuts_schema_version = 3;
     c_ipc_engine_state_page_size_schema_version = 4;
-    c_ipc_engine_state_schema_version = 9;
+    // 10 omits custom phrases; 11 includes them. Both append candidate keys.
+    c_ipc_engine_state_schema_version = 11;
     c_ipc_payload_max_text_bytes = 1024 * 1024;
     c_ipc_payload_max_candidates = 256;
 
@@ -1278,7 +1279,7 @@ begin
         if include_custom_phrases then
             WritePayloadHeaderVersion(writer, c_ipc_engine_state_schema_version)
         else
-            WritePayloadHeaderVersion(writer, 8);
+            WritePayloadHeaderVersion(writer, 10);
         writer.WriteByte(Ord(state.input_mode));
         writer.WriteByte(Ord(state.dictionary_variant));
         writer.WriteByte(Ord(state.pinyin_scheme));
@@ -1326,6 +1327,9 @@ begin
                 writer.WriteString(phrase.text);
             end;
         end;
+        writer.WriteByte(Ord(state.second_third_candidate_keys));
+        writer.WriteByte(0);
+        writer.WriteUInt16(0);
         Result := writer.Finish;
     finally
         writer.Free;
@@ -1349,6 +1353,7 @@ var
     fuzzy_rules_mask: Cardinal;
     candidate_page_key_scheme: Byte;
     one_key_completion_key: Byte;
+    second_third_candidate_keys: Byte;
     candidate_page_size: Byte;
     reserved: Word;
     reserved_byte: Byte;
@@ -1359,6 +1364,7 @@ begin
         fuzzy_rules_mask := 0;
         candidate_page_key_scheme := Ord(state.candidate_page_key_scheme);
         one_key_completion_key := Ord(state.one_key_completion_key);
+        second_third_candidate_keys := Ord(state.second_third_candidate_keys);
         candidate_page_size := Byte(state.candidate_page_size);
         reserved := 0;
         reserved_byte := 0;
@@ -1414,7 +1420,7 @@ begin
                 (state.punctuation_ascii_symbols = nc_normalize_punctuation_ascii_symbols(state.punctuation_ascii_symbols));
             if not Result then reader.SetError('Invalid punctuation or English preference');
         end;
-        if Result and (version >= 9) then
+        if Result and ((version = 9) or (version >= 11)) then
         begin
             Result := reader.ReadUInt32(phrase_count);
             if Result and (phrase_count > c_custom_phrase_max_count) then
@@ -1440,6 +1446,17 @@ begin
                         Break;
                     end;
                 end;
+            end;
+        end;
+        if Result and (version >= 10) then
+        begin
+            Result := reader.ReadByte(second_third_candidate_keys) and
+                reader.ReadByte(reserved_byte) and reader.ReadUInt16(reserved);
+            if Result and ((second_third_candidate_keys > Ord(High(TncSecondThirdCandidateKeys))) or
+                (reserved_byte <> 0) or (reserved <> 0)) then
+            begin
+                reader.SetError('State payload contains invalid second/third candidate keys');
+                Result := False;
             end;
         end;
         if Result and (input_mode > Ord(High(TncInputMode))) then
@@ -1535,6 +1552,8 @@ begin
                 TncCandidatePageKeyScheme(candidate_page_key_scheme);
             state.one_key_completion_key :=
                 TncOneKeyCompletionKey(one_key_completion_key);
+            state.second_third_candidate_keys :=
+                TncSecondThirdCandidateKeys(second_third_candidate_keys);
             state.debug_mode := (flags and c_state_flag_debug_mode) <> 0;
             if nc_candidate_page_key_conflicts_with_one_key_completion(
                 state.candidate_page_key_scheme,

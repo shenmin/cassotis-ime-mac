@@ -145,7 +145,7 @@ std::string normalizePunctuationASCII(const std::string &value) {
     return result;
 }
 Bytes encodeState(const State &s) {
-    Writer w; w.schema(s.includesCustomPhrases?9:8); w.u8(s.mode); w.u8(s.dictionary); w.u8(s.scheme); w.u8(s.flags);
+    Writer w; w.schema(s.includesCustomPhrases?11:10); w.u8(s.mode); w.u8(s.dictionary); w.u8(s.scheme); w.u8(s.flags);
     w.u32(s.fuzzy); w.u8(s.pageKeys); w.u8(s.completionKey); w.u8(s.pageSize); w.u8(0);
     for(auto &k:s.shortcuts) { w.u16(k.key); w.u8(k.modifiers); w.u8(0); }
     uint8_t disabled=0; for(int i=0;i<5;++i) if(s.shortcuts[i].disabled) disabled|=1<<i;
@@ -156,11 +156,12 @@ Bytes encodeState(const State &s) {
         w.u32(uint32_t(s.customPhrases.size()));
         for(const auto &phrase:s.customPhrases) { w.string(phrase.shortcut); w.string(phrase.text); }
     }
+    w.u8(s.secondThirdKeys); w.u8(0); w.u16(0);
     return w.data;
 }
 State decodeState(const Bytes &data) {
-    Reader r(data); auto schema=r.schema(); require(schema>=4 && schema<=9,"Unsupported state schema"); State s;
-    s.includesCustomPhrases=schema>=9;
+    Reader r(data); auto schema=r.schema(); require(schema>=4 && schema<=11,"Unsupported state schema"); State s;
+    s.includesCustomPhrases=schema==9 || schema>=11;
     s.mode=r.u8(); s.dictionary=r.u8(); s.scheme=r.u8(); s.flags=r.u8(); s.fuzzy=r.u32();
     s.pageKeys=r.u8(); s.completionKey=r.u8(); s.pageSize=r.u8(); require(r.u8()==0,"Invalid state flags");
     for(auto &k:s.shortcuts) { k.key=r.u16(); k.modifiers=r.u8(); require(r.u8()==0 && !(k.modifiers&~7),"Invalid shortcut"); }
@@ -173,7 +174,7 @@ State decodeState(const Bytes &data) {
         s.autoEnglish=enabled; s.punctuationASCII=r.string();
         require(s.punctuationASCII==normalizePunctuationASCII(s.punctuationASCII),"Invalid punctuation symbols");
     }
-    if(schema>=9) {
+    if(s.includesCustomPhrases) {
         auto count=r.u32(); require(count<=1024,"Too many custom phrases");
         for(uint32_t i=0;i<count;++i) {
             CustomPhrase phrase{r.string(),r.string()};
@@ -183,7 +184,11 @@ State decodeState(const Bytes &data) {
             s.customPhrases.push_back(std::move(phrase));
         }
     }
-    r.end(); require(s.mode<=1 && s.dictionary<=1 && s.scheme<=6 && !(s.flags&~(schema>=7?63:schema>=6?31:15)) &&
+    if(schema>=10) {
+        s.secondThirdKeys=r.u8();
+        require(s.secondThirdKeys<=1 && r.u8()==0 && r.u16()==0,"Invalid second/third candidate keys");
+    }
+    r.end(); require(s.mode<=1 && s.dictionary<=1 && s.scheme<=7 && !(s.flags&~(schema>=7?63:schema>=6?31:15)) &&
         s.pageKeys<=3 && s.completionKey<=1 && s.pageSize>=3 && s.pageSize<=9,"Invalid state values");
     if(schema<7) s.flags|=32; // Older installations inherit the enabled default.
     return s;

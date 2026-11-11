@@ -37,7 +37,7 @@ codesign --verify --deep --strict "$app"
 }
 [[ "$("$app/Contents/MacOS/cassotis-engine" --version)" == "$version" ]] || { echo 'Engine version mismatch.' >&2; exit 1; }
 for variant in sc tc; do
-    for required in short-promotion word-frequency; do
+    for required in short-promotion word-frequency conversation-frequency; do
         "$root/build/$arch/bin/cassotis-dict-init" "$app/Contents/Resources/dictionaries/dict_$variant.db" \
             "$root/data/schema.sql" "--require-$required"
     done

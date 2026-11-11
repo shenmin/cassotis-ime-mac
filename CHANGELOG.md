@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.7.0 (build 8, unreleased)
+
+- Add Zhineng ABC Double Pinyin, bringing the total to seven layouts.
+- Enable shared-model short-word, phrase and long-correction paths in Double Pinyin and traditional Chinese; keep Taiwan-written 么 distinct from the question-word form 麼.
+- Rank single-character candidates with the preceding context, while protecting learned choices and retaining frequency order without context.
+- Run a second joint sentence-correction pass when the first changes the draft. Score phrases ending in 没 as questions and protect everyday phrases from rare completions.
+- Insert valid split-first-syllable prefixes without displacing the original reading's first candidate; preserve the exact unconsumed keys after selection.
+- Add optional semicolon / single-quote selection of the second / third candidate, with Double Pinyin finals taking priority. Preserve the preference and custom phrases across older and compact state updates.
+- Add a candidate-window context menu and an automatically saved option to anchor the window at the composition start, enabled by default.
+- Update to Windows and Cassotis Lexicon v2.7.0, including conversation word frequencies, refreshed ranking parameters and new weights for the sole neural model.
+
 ## 2.6.0 (build 7, 2026-11-03)
 
 - Improve complete-sentence ranking with six non-overlapping word-frequency features and updated long-choice parameters.

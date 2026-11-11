@@ -37,6 +37,7 @@ def main():
              ('completion_competition', 'completion_competition'),
              ('completion_pair_audit', 'completion_pair_audit'),
              ('word_frequency', 'word_frequency'),
+             ('conversation_frequency', 'conversation_frequency'),
              ('char_lm', 'char_lm'), ('char_reverse_lm', 'char_reverse_lm'),
              ('short_promotion', 'short_promotion')]
     for variant in ('sc', 'tc'):
@@ -63,6 +64,8 @@ def main():
                 subprocess.run([str(tool), str(database), str(schema), '--require-short-promotion'],
                                stdout=log, stderr=subprocess.STDOUT, check=True)
                 subprocess.run([str(tool), str(database), str(schema), '--require-word-frequency'],
+                               stdout=log, stderr=subprocess.STDOUT, check=True)
+                subprocess.run([str(tool), str(database), str(schema), '--require-conversation-frequency'],
                                stdout=log, stderr=subprocess.STDOUT, check=True)
             with sqlite3.connect(database) as connection:
                 assert connection.execute('PRAGMA integrity_check').fetchone() == ('ok',)
