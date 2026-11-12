@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.7.0 (build 8, unreleased)
+## 2.7.0 (build 8, 2026-11-12)
 
 - Add Zhineng ABC Double Pinyin, bringing the total to seven layouts.
 - Enable shared-model short-word, phrase and long-correction paths in Double Pinyin and traditional Chinese; keep Taiwan-written 么 distinct from the question-word form 麼.
