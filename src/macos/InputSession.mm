@@ -226,11 +226,33 @@ static CassotisInputActivity systemInputActivity(NSTimeInterval now) {
 }
 CassotisInputActivity (*CassotisInputActivitySource)(NSTimeInterval)=systemInputActivity;
 uint16_t CassotisPrecedingDigit(const CassotisDecimalInput &previous,
-    const CassotisInputActivity &activity, NSRange selection) {
+    const CassotisInputActivity &activity, NSRange selection,
+    NSTimeInterval timestamp, BOOL matchingText) {
     if(previous.digit<'0' || previous.digit>'9' || !previous.activity.steady || !activity.steady ||
-       activity.inputs-previous.activity.inputs!=1 || activity.modifiers!=previous.activity.modifiers ||
+       activity.modifiers!=previous.activity.modifiers ||
        selection.length || selection.location!=previous.expectedCaret) return 0;
-    return previous.digit;
+    const bool adjacent=activity.inputs-previous.activity.inputs==1;
+    // On macOS 27.2.1 these activity statistics can arrive in half-second
+    // batches, after IMK has already handled the keys. A stale count cannot
+    // establish adjacency, even when its delta happens to be one.
+    const bool delayed=previous.timestamp>0 && timestamp>=previous.timestamp &&
+        activity.lastInput>0 && timestamp-activity.lastInput>0.25;
+    if(!delayed) return adjacent?previous.digit:0;
+    // The session clears this evidence on other keys, mouse/modifier events,
+    // composition barriers and client changes. Never use the fallback for a
+    // client whose caret or preceding text is unavailable or has changed.
+    if(selection.location==NSNotFound || !selection.location || !matchingText) return 0;
+    return adjacent || activity.lastInput<previous.timestamp?previous.digit:0;
+}
+static BOOL clientHasPreviousDigit(id client, NSRange selection, uint16_t digit) {
+    if(digit<'0' || digit>'9' || selection.location==NSNotFound ||
+       !selection.location || selection.length) return NO;
+    @try {
+        NSAttributedString *text=[client attributedSubstringFromRange:NSMakeRange(selection.location-1,1)];
+        if(text.length!=1) return NO;
+        unichar ch=[text.string characterAtIndex:0];
+        return ch==digit || ch==0xff10+digit-'0';
+    } @catch(NSException *error) { (void)error; return NO; }
 }
 static NSRange clientSelection(id client) {
     @try { return [client selectedRange]; }
@@ -681,8 +703,13 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     }
     auto key=CassotisTranslateKey(event,release);
     const auto selection=clientSelection(self.client);
-    if(event.type==NSEventTypeKeyDown && !(key.modifiers&15) && _result.preedit.empty())
-        key.precedingDigit=CassotisPrecedingDigit(preceding,_seen,selection);
+    if(event.type==NSEventTypeKeyDown && !(key.modifiers&15) && _result.preedit.empty()) {
+        BOOL delayed=preceding.timestamp>0 && event.timestamp>=preceding.timestamp &&
+            _seen.lastInput>0 && event.timestamp-_seen.lastInput>0.25;
+        BOOL matching=delayed && (key.text=="." || key.special==18) &&
+            clientHasPreviousDigit(self.client,selection,preceding.digit);
+        key.precedingDigit=CassotisPrecedingDigit(preceding,_seen,selection,event.timestamp,matching);
+    }
     if((key.modifiers&8) || (key.special==5 && (key.modifiers&2)) || event.keyCode==kVK_Function ||
        ((event.modifierFlags&NSEventModifierFlagFunction) && (!key.special || key.special==5))) {
         if(event.type!=NSEventTypeFlagsChanged) [self cancelModeFeedback];
@@ -699,6 +726,7 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
         if(!plainDigit || !_active || self.client!=eventClient) return;
         _decimalInput.digit=key.text[0];
         _decimalInput.activity=_seen;
+        _decimalInput.timestamp=event.timestamp;
         _decimalInput.expectedCaret=selection.location==NSNotFound?NSNotFound:selection.location+1;
     };
     if(![self ensureReady]) {

@@ -23,6 +23,15 @@ question word. It is listed in c_simplified_taiwan_written, which the
 conversion of a page or a commit leaves as it is (the dictionary writes 麼 where
 it reads me); a 么 the LM writes is still 麼 (什么, 怎么).
 
+Two characters are forms of one simplified character, each written by
+traditional text in its own sense (隻 and 只 of 只, 製 and 制 of 制, 係 and 繫
+of 系), where both are among the Taiwan forms STCharacters.txt gives that
+character. A form Taiwan does not write (裏 of 裡, 説 of 說) is no such form:
+TWVariants.txt turns it into the other one. The LM reads both as the
+simplified character; the engine orders a syllable's characters with a
+context by its scores (order_single_chars_by_lm) and asks about a character
+of such a pair beside its twin (c_traditional_form_pairs).
+
 TSCharacters.txt gives each traditional character its first simplified
 form. All at a fixed commit. Characters outside the Basic Multilingual Plane
 are left out: the tables map UTF-16 code units.
@@ -59,11 +68,11 @@ def bmp(text):
     return len(text) == 1 and ord(text) <= 0xFFFF
 
 
-def table(name, codes):
-    lines = [f'const {name}: array[0..{len(codes) - 1}] of Word = (']
-    for start in range(0, len(codes), 12):
-        suffix = ',' if start + 12 < len(codes) else ');'
-        lines.append('    ' + ', '.join(f'${code:04X}' for code in codes[start:start + 12]) + suffix)
+def table(name, codes, kind='Word', digits=4, per_line=12):
+    lines = [f'const {name}: array[0..{len(codes) - 1}] of {kind} = (']
+    for start in range(0, len(codes), per_line):
+        suffix = ',' if start + per_line < len(codes) else ');'
+        lines.append('    ' + ', '.join(f'${code:0{digits}X}' for code in codes[start:start + per_line]) + suffix)
     return '\n'.join(lines)
 
 
@@ -88,10 +97,13 @@ def main():
     to_simplified[ord(PARTICLE_TRADITIONAL)] = ord(PARTICLE_SIMPLIFIED)
     to_traditional = {}
     ambiguous = []
+    form_pairs = set()
     for key, values in entries(payloads['STCharacters.txt']):
         if not bmp(key):
             continue
         forms = list(dict.fromkeys(taiwan.get(value, value) for value in values))
+        form_pairs.update((ord(a) << 16) | ord(b) for a in forms for b in forms
+                          if a != b and bmp(a) and bmp(b))
         if key in forms:
             if len(forms) > 1:
                 ambiguous.append(ord(key))
@@ -117,6 +129,8 @@ def main():
               '  beside other forms (后: 後 or 后). c_simplified_taiwan_written: one of\n'
               '  c_simplified_chars that Taiwan\'s text writes as a form of another (么 of\n'
               '  幺: 老么), left as it is in pages and commits.\n'
+              '  c_traditional_form_pairs: two Taiwan forms of one simplified character\n'
+              '  (隻 and 只), the first code shl 16 or the second, both orders, sorted.\n'
               '  UTF-16 code units of the Basic Multilingual Plane only. }\n')
     text = '\n\n'.join([header.rstrip('\n'),
                         table('c_traditional_chars', t_keys),
@@ -125,10 +139,12 @@ def main():
                         table('c_simplified_chars', s_keys),
                         table('c_simplified_traditional', [to_traditional[k] for k in s_keys]),
                         table('c_simplified_ambiguous', sorted(ambiguous)),
-                        table('c_simplified_taiwan_written', taiwan_written)]) + '\n'
+                        table('c_simplified_taiwan_written', taiwan_written),
+                        table('c_traditional_form_pairs', sorted(form_pairs), 'Cardinal', 8, 8)]) + '\n'
     TARGET.write_text(text, encoding='utf-8', newline='\n')
     print(f'{TARGET}: {len(t_keys)} traditional, {len(s_keys)} simplified, '
-          f'{len(ambiguous)} ambiguous, {len(taiwan_written)} written by Taiwan, {len(kept)} kept words')
+          f'{len(ambiguous)} ambiguous, {len(taiwan_written)} written by Taiwan, {len(kept)} kept words, '
+          f'{len(form_pairs) // 2} form pairs')
 
 
 if __name__ == '__main__':

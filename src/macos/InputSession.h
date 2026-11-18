@@ -36,15 +36,18 @@ struct CassotisInputActivity {
     NSTimeInterval lastInput=0, lastModifier=0;
     BOOL steady=YES;
 };
-// Tracks only a digit delivered by this session. Caret and global counters
-// reject intervening input even when the application consumed it before IMK.
+// Tracks only a digit delivered by this session. Fresh global counters detect
+// input consumed before IMK. When system statistics lag, require a verified
+// caret and the same digit immediately before it instead.
 struct CassotisDecimalInput {
     uint16_t digit=0;
     NSUInteger expectedCaret=NSNotFound;
     CassotisInputActivity activity;
+    NSTimeInterval timestamp=0;
 };
 uint16_t CassotisPrecedingDigit(const CassotisDecimalInput &previous,
-    const CassotisInputActivity &activity, NSRange selection);
+    const CassotisInputActivity &activity, NSRange selection,
+    NSTimeInterval timestamp=0, BOOL matchingText=NO);
 struct CassotisModifierTap {
     BOOL watched=NO, single=NO; uint32_t inputs=0;
     NSTimeInterval pressed=0, handled=0, lastInput=0;

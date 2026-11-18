@@ -29,7 +29,7 @@
 
 Cassotis IME for macOS (言泉输入法 macOS 版) is an experimental Chinese Pinyin input method for Apple silicon Macs. A native InputMethodKit / AppKit frontend communicates over IPC with a standalone Free Pascal engine process ported from [Cassotis IME for Windows](https://github.com/shenmin/cassotis-ime), using dictionaries built from [Cassotis Lexicon](https://github.com/shenmin/cassotis-lexicon). Candidate ranking runs entirely on the local CPU, powered by an in-house character-level language model. There are no ads, bundled programs, or cloud uploads—dictionaries, settings, and learned words remain strictly on your Mac.
 
-Version 2.7.0 (build 8) aligns with Cassotis IME and Cassotis Lexicon v2.7.0 and requires Apple silicon running macOS 14 or later. Download the [v2.7.0 installer](https://github.com/shenmin/cassotis-ime-mac/releases/download/v2.7.0/cassotis-ime-macos-2.7.0-arm64-installer-signed.dmg) or read the [release notes](https://github.com/shenmin/cassotis-ime-mac/releases/tag/v2.7.0). See the [website](https://www.yanquan.org/mac) for a product overview, [COMPATIBILITY.md](COMPATIBILITY.md) for tested environments and known limitations, and the [version history](#version-history) below for release milestones.
+The source for the upcoming 2.8.0 (build 9) aligns with Cassotis IME and Cassotis Lexicon v2.8.0 and requires Apple silicon running macOS 14 or later. The current published download is the [v2.7.0 installer](https://github.com/shenmin/cassotis-ime-mac/releases/download/v2.7.0/cassotis-ime-macos-2.7.0-arm64-installer-signed.dmg); read its [release notes](https://github.com/shenmin/cassotis-ime-mac/releases/tag/v2.7.0). See the [website](https://www.yanquan.org/mac) for a product overview, [COMPATIBILITY.md](COMPATIBILITY.md) for tested environments and known limitations, and the [version history](#version-history) below for release milestones.
 
 Project goals:
 - keep the macOS engine synchronized with each Windows release and verify parity on shared benchmark suites,
@@ -55,7 +55,7 @@ The Chinese name **言泉** (Yanquan, "Spring of Words") echoes both the prophet
 - **Quick input.** `ufh` for symbols, `uxh` for numbered markers, `usx` for math symbols, `urq` / `usj` for current date and time, and more; `i123.45` or `v123.45` formats Chinese numerals and uppercase currency amounts, selected via `a/b/c/d` while digit keys continue appending numbers. In Double Pinyin, enter these modes via Shift+U/I/V. See the [quick-input guide (Chinese)](QUICK_INPUT.md).
 - **Chinese punctuation.** In Chinese punctuation with half-width input, a period typed immediately after digits outputs a decimal point. Symbols kept half-width can be customized in Settings or switched between the Markdown preset and standard Chinese punctuation. The default Markdown preset preserves ``-#*+_=`~[]<>|@`` as ASCII while keeping Chinese commas, periods, parentheses, and quotation marks; backslash outputs `、`.
 - **Custom phrases.** Bind letter abbreviations to literal single- or multi-line text committed via Tab without affecting numbered candidates or Space. Supports custom ordering, duplicate-shortcut priority, and Windows-compatible JSON import/export. Enter a shortcut and text, then click **添加短语** (Add Phrase); use **保存修改** (Save Changes) or **取消编辑** (Cancel Edit) when editing existing entries.
-- **Settings.** Sidebar-organized preferences window where confirmed changes save and apply immediately, with direct key-press shortcut recording and font-name autocomplete. Logging is disabled by default.
+- **Settings.** Sidebar-organized preferences window where confirmed changes save and apply immediately, with direct key-press shortcut recording and font-name autocomplete. Logging is disabled by default. Keys groups paging, candidate keys and completion; `[` / `]` can optionally select the first / last character of the highlighted word.
 - **Offline by design.** Runs locally without network access or GPU usage. Keystrokes entered while the engine starts are buffered and processed once ready; if the language model is still loading or unavailable, dictionary-based input continues normally without neural reranking.
 
 <p align="center">
@@ -64,14 +64,14 @@ The Chinese name **言泉** (Yanquan, "Spring of Words") echoes both the prophet
   <em>Three-row candidate view, with selection numbers on the active row.</em>
 </p>
 
-## What's new in 2.7.0
+## What's new in 2.8.0
 
-- **Zhineng ABC Double Pinyin.** All seven Double Pinyin layouts and Traditional Chinese mode now support the full neural pipeline for short words, out-of-vocabulary phrases, sentence homophone correction, and Tab continuation.
-- **Context-aware single-character ranking.** With preceding text, homophone characters are ranked jointly by language-model probability and modern character frequency; without context, standard frequency order applies while user-learned choices stay prioritized.
-- **Improved sentence and phrase quality.** Long-sentence homophone repair now supports a second pass after an initial edit; phrases ending in 没 are evaluated as questions, with tighter guards against rare completions and literary words overriding everyday phrasing.
-- **Expanded selection controls.** Optional `;` and `'` shortcuts select the second and third candidates (disabled by default, with Double Pinyin finals taking priority). Right-clicking the candidate window opens quick controls for mode switching, Settings, and About.
-- **Anchored candidate window positioning.** The candidate window stays anchored at the start of the composition by default and can be switched in Appearance to follow the caret immediately.
-- **Updated model and dictionaries.** Ships v2.7.0 language-model weights, ranking parameters, and lexicon updates, adding conversational word-frequency protection and Taiwan traditional character/reading fixes within a single bundled neural model.
+- **Pick a character from a word.** Enable `[` / `]` in Keys to commit the highlighted candidate's first or last character. Bracket paging takes priority; this action does not train character preferences.
+- **Recent choices matter, without lasting surprises.** Choose a word twice within two hours to put it first temporarily. Single-character preferences expire after the same window.
+- **More natural short phrases.** Preserve corpus-supported phrases, distinguish the readings of 没, and keep `oo` as a Chinese acknowledgement unless English was deliberately chosen.
+- **Better traditional-character choices.** Common related forms beyond the first sixteen characters can participate in context ranking.
+- **Updated vocabulary and less repeated inference.** Adopt Lexicon v2.8.0 and reuse recent model output distributions. The application still carries one neural model, with the same weights as 2.7.0.
+- **Keep syllable boundaries intact.** Fix long-sentence candidates when Double Pinyin or an apostrophe fixes an otherwise ambiguous boundary.
 
 ## Download and Install
 - **Download.** Download `cassotis-ime-macos-<version>-arm64-installer-signed.dmg` (~340 MB, including simplified/traditional base dictionaries and the language model) from [Releases](https://github.com/shenmin/cassotis-ime-mac/releases). Official disk images are signed with the Sunisoft Limited Developer ID and notarized by Apple.
@@ -105,7 +105,7 @@ See the [architecture document (Chinese)](docs/ARCHITECTURE.md) for process boun
 Pinyin conversion requires `cassotis-engine`. If an IPC request fails or times out, the frontend commits the last visible composition, passes the current key event through to the client app, and restarts the engine automatically. If model files are missing, dictionary lookup and candidate input continue without language-model reranking.
 
 ## Build and Install (Quick Start)
-Prerequisites: Apple silicon Mac, Free Pascal 3.2.2, Xcode Command Line Tools, and Python 3.11+ (Lazarus/LCL is not needed). Obtain the generated lexicon files from [Cassotis Lexicon v2.7.0](https://github.com/shenmin/cassotis-lexicon) and point `CASSOTIS_LEXICON_ROOT` to that directory (`/path/to/...` below is a placeholder):
+Prerequisites: Apple silicon Mac, Free Pascal 3.2.2, Xcode Command Line Tools, and Python 3.11+ (Lazarus/LCL is not needed). Obtain the generated lexicon files from [Cassotis Lexicon v2.8.0](https://github.com/shenmin/cassotis-lexicon) and point `CASSOTIS_LEXICON_ROOT` to that directory (`/path/to/...` below is a placeholder):
 
 ```sh
 ./scripts/check_environment.sh
@@ -123,10 +123,10 @@ Base dictionaries use schema-24 SQLite databases defined by [Cassotis Lexicon](h
 - core and character word lists: `dict_unihan_sc.txt`, `dict_unihan_tc.txt`, `dict_clean_sc.txt`, and `dict_clean_tc.txt` (`pinyin<TAB>text<TAB>weight`),
 - corpus-derived statistical tables: word-transition priors, completion priors, general-text and conversational word frequencies, and precomputed short-word promotion tables.
 
-During the build, each input file is verified against [data/lexicon-inputs.json](data/lexicon-inputs.json) before being imported into `dict_sc.db` and `dict_tc.db` inside the app bundle. The v2.7.0 dictionaries contain 264,167 simplified and 267,265 traditional reading entries (including single characters). User dictionaries, engine preferences, and learned data live under `~/Library/Application Support/CassotisIME/` and are never overwritten on app updates.
+During the build, each input file is verified against [data/lexicon-inputs.json](data/lexicon-inputs.json) before being imported into `dict_sc.db` and `dict_tc.db` inside the app bundle. The v2.8.0 dictionaries contain 266,839 simplified and 269,930 traditional reading entries (including single characters). User dictionaries, engine preferences, and learned data live under `~/Library/Application Support/CassotisIME/` and are never overwritten on app updates.
 
 ## Models and Ranking
-The macOS build uses the exact same language model and compact ranking components as Cassotis IME for Windows v2.7.0, with byte-identical model weights and identical compiled decision parameters.
+The macOS build uses the exact same language model and compact ranking components as Cassotis IME for Windows v2.8.0, with byte-identical model weights and identical compiled decision parameters.
 
 ### Character-level language model
 - **Unified local language model.** A custom-trained ~150M-parameter character-level autoregressive model (11 layers, 1,024 hidden size, 12,017-character vocabulary, int8 static quantization) serves every neural task: full-sentence scoring and Pinyin-conditioned homophone repair, contextual short-word and single-character ranking, out-of-vocabulary phrase composition, English-vs-Chinese candidate weighting, one-key completion reranking, and long-sentence Tab continuation. Earlier task-specific neural graphs have been retired.
@@ -158,14 +158,15 @@ In Traditional Chinese mode, candidates and context are mapped to simplified cha
 ## Benchmarks
 Methodology, corpus details, and scoring rules are documented in [BENCHMARK.md](BENCHMARK.md). The evaluation suites match Cassotis IME for Windows and are drawn from the author's novel [**Elegance in Timelessness** (永恒的舞动)](https://www.qidian.com/book/1037259117/), strictly disjoint from all training corpora. Version labels in the tables denote macOS releases.
 
-Measurements below were collected serially in native arm64 mode on an Apple M2 Pro (32 GiB RAM, macOS 27.0.1) using the simplified dictionary and six model threads (releases prior to v2.5.0 used eight). Latencies are reported in milliseconds for the engine alone, excluding InputMethodKit, IPC, and UI rendering. Cross-run latency varies slightly with background system load; full run logs and repeat measurements are in [BENCHMARK.md](BENCHMARK.md).
+Current measurements were collected serially in native arm64 mode on an Apple M2 Pro (32 GiB RAM, macOS 27.2.1) using the simplified dictionary and six model threads (releases prior to v2.5.0 used eight). Latencies are reported in milliseconds for the engine alone, excluding InputMethodKit, IPC, and UI rendering. Cross-run latency varies slightly with background system load; full results and methodology are in [BENCHMARK.md](BENCHMARK.md).
 
-The tables compare macOS v2.7.0 against the preceding release, v2.6.0, while retaining published figures for earlier versions. Test cases include the 51 long-sentence and 217 short-word polyphonic Pinyin reading fixes adopted during v2.1.0 preparation. In the `v2.0.0` row, regular text shows the October 23 remeasurement of the original binary and Lexicon v2.2.0 on the corrected cases, italic text preserves the original release numbers, and a single value indicates no change. `v1.0.0` retains its historical figures. Full details and upstream reference counts appear in [BENCHMARK.md](BENCHMARK.md).
+The tables compare macOS v2.8.0 against the preceding release, v2.7.0, while retaining published figures for earlier versions. Test cases include the 51 long-sentence and 217 short-word polyphonic Pinyin reading fixes adopted during v2.1.0 preparation. In the `v2.0.0` row, regular text shows the October 23 remeasurement of the original binary and Lexicon v2.2.0 on the corrected cases, italic text preserves the original release numbers, and a single value indicates no change. `v1.0.0` retains its historical figures. Full details and upstream reference counts appear in [BENCHMARK.md](BENCHMARK.md).
 
 ### Long Sentence Benchmark-16300
 
 | Version | Top1 | Top2 | Mean (ms) | P50 (ms) | P95 (ms) | Max (ms) |
 |---|---:|---:|---:|---:|---:|---:|
+| `v2.8.0` | 13747/16300 (84.34%) | 14690/16300 (90.12%) | 88.809 | 82 | 159 | 533 |
 | `v2.7.0` | 13738/16300 (84.28%) | 14681/16300 (90.07%) | 85.862 | 79 | 155 | 508 |
 | `v2.6.0` | 13743/16300 (84.31%) | 14689/16300 (90.12%) | 82.148 | 77 | 143 | 499 |
 | `v2.5.0` | 13441/16300 (82.46%) | 14358/16300 (88.09%) | 86.055 | 81 | 146 | 512 |
@@ -179,6 +180,7 @@ Accuracy is measured in deterministic mode without inference timeouts; latency i
 
 | Version | Top1 | Top2 | Contested Top1 | Contested Top2 | Mean (ms) | P50 (ms) | P95 (ms) | Max (ms) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `v2.8.0` | 63502/65000 (97.70%) | 64565/65000 (99.33%) | 10546/11685 (90.25%) | 11315/11685 (96.83%) | 7.459 | 5 | 20 | 69 |
 | `v2.7.0` | 63502/65000 (97.70%) | 64564/65000 (99.33%) | 10545/11685 (90.24%) | 11315/11685 (96.83%) | 7.404 | 5 | 20 | 53 |
 | `v2.6.0` | 63455/65000 (97.62%) | 64521/65000 (99.26%) | 10516/11685 (90.00%) | 11283/11685 (96.56%) | 6.744 | 5 | 18 | 99 |
 | `v2.5.0` | 63463/65000 (97.64%) | 64436/65000 (99.13%) | 10512/11685 (89.96%) | 11223/11685 (96.05%) | 7.202 | 5 | 20 | 66 |
@@ -186,12 +188,13 @@ Accuracy is measured in deterministic mode without inference timeouts; latency i
 | `v2.0.0` | 63348/65000 (97.46%)<br>*63362/65000 (97.48%)* | 64346/65000 (98.99%)<br>*64291/65000 (98.91%)* | 10504/11685 (89.89%)<br>*10533/11728 (89.81%)* | 11228/11685 (96.09%)<br>*11244/11728 (95.87%)* | 7.281<br>*7.232* | 5 | 20 | 79<br>*62* |
 | `v1.0.0` | 63036/65000 (96.98%) | 64103/65000 (98.62%) | 10488/11728 (89.43%) | 11196/11728 (95.46%) | 6.801 | 6 | 17 | 40 |
 
-Results above include preceding context. `Contested` denotes queries that map to at least two distinct target words in the corpus. Without preceding context, v2.7.0 achieves 61315/63820 (Top1/Top2). Full subset breakdowns are in [BENCHMARK.md](BENCHMARK.md).
+Results above include preceding context. `Contested` denotes queries that map to at least two distinct target words in the corpus. Without preceding context, v2.8.0 achieves 61316/63822 (Top1/Top2). Full subset breakdowns are in [BENCHMARK.md](BENCHMARK.md).
 
 ### One-key Completion Context Benchmark-12831
 
 | Version | Completion Hit | Avg Keys Saved | Stability | Keystroke P95 (ms) | Final P95 (ms) |
 | --- | --- | --- | --- | --- | --- |
+| `v2.8.0` | 10506/12831 (81.88%) | 2.634 | 2139/2200 (97.23%) | 2.107 | 17.968 |
 | `v2.7.0` | 10506/12831 (81.88%) | 2.634 | 2139/2200 (97.23%) | 2.054 | 17.527 |
 | `v2.6.0` | 10513/12831 (81.93%) | 2.635 | 2153/2216 (97.16%) | 2.000 | 16.493 |
 | `v2.5.0` | 10513/12831 (81.93%) | 2.635 | 2153/2216 (97.16%) | 2.137 | 19.915 |
@@ -205,6 +208,7 @@ The 65,000 short-word cases yield 12,831 completion opportunities. Average keys 
 
 | Version | Local Completion Hit | Predictive Prompt Coverage | Total Keys Saved | P95 (ms) |
 | --- | --- | --- | --- | --- |
+| `v2.8.0` | 3976/16300 (24.39%) | 16230/16300 (99.57%) | 9816 | 150 |
 | `v2.7.0` | 3982/16300 (24.43%) | 16234/16300 (99.60%) | 9827 | 143 |
 | `v2.6.0` | 3955/16300 (24.26%) | 16152/16300 (99.09%) | 9724 | 137 |
 | `v2.5.0` | 3903/16300 (23.94%) | 16144/16300 (99.04%) | 9627 | 146 |
@@ -212,7 +216,7 @@ The 65,000 short-word cases yield 12,831 completion opportunities. Average keys 
 | `v2.0.0` | 3771/16300 (23.13%)<br>*3768/16300 (23.12%)* | 16111/16300 (98.84%)<br>*16113/16300 (98.85%)* | 9303<br>*9293* | 143<br>*149* |
 | `v1.0.0` | 3539/16300 (21.71%) | 15812/16300 (97.01%) | 7539 | 131 |
 
-Each case omits the final four complete syllables of a sentence and evaluates the single continuation shown; any continuation that accurately extends the typed prefix counts as a hit without requiring full-sentence completion. All releases enforce an 80 ms deadline. For v2.7.0, both the deadline-free control run and the production run record 3,982 hits and 9,827 net saved keys. 他 and 她 are treated as equivalent at the same position. `Predictive Prompt Coverage` measures how often a predictive continuation is offered (excluding plain joins of already-typed Pinyin) rather than hit precision.
+Each case omits the final four complete syllables of a sentence and evaluates the single continuation shown; any continuation that accurately extends the typed prefix counts as a hit without requiring full-sentence completion. All releases enforce an 80 ms deadline. For v2.8.0, the deadline-free control run records 3,976 hits and 9,816 net saved keys; the production run records 3,976 hits and 9,816 net saved keys. 他 and 她 are treated as equivalent at the same position. `Predictive Prompt Coverage` measures how often a predictive continuation is offered (excluding plain joins of already-typed Pinyin) rather than hit precision.
 
 ## Configuration
 Open **Settings…** from the menu bar input menu, or press Ctrl+Shift+F10. Confirmed changes are saved and applied immediately.
@@ -229,6 +233,7 @@ Key options include:
 - candidate font, size, color theme, and optional three-row expansion
 - candidate window anchored at composition start or following the caret (anchored by default)
 - `;` and `'` shortcuts for the second and third candidates (disabled by default)
+- `[` / `]` to select a candidate's first or last character (disabled by default; incompatible with bracket paging)
 - Chinese/English mode bubble near the caret (enabled by default)
 - custom phrases with Add / Save Changes controls, ordering, duplicate priority, and JSON import/export
 - importing external word frequencies under Advanced

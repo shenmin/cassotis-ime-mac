@@ -74,6 +74,7 @@ struct State {
     std::vector<CustomPhrase> customPhrases;
     uint8_t pageKeys = 0, completionKey = 0, pageSize = 5;
     uint8_t secondThirdKeys = 0;
+    uint8_t selectCharacterKeys = 0;
     Shortcut shortcuts[5];
 };
 std::string normalizePunctuationASCII(const std::string &value);

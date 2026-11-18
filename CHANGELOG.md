@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.8.0 (build 9, unreleased)
+
+- Add optional `[` / `]` selection of the highlighted candidate's first / last character, without learning that character. Bracket paging takes priority.
+- Organize paging, candidate selection and completion on a dedicated Keys page; retain native instant saving.
+- Temporarily prioritize a word chosen twice within two hours. Single-character learning expires after the same window, avoiding lasting changes from occasional selections.
+- Preserve corpus-supported short phrases, score question endings by their Pinyin reading, and prefer the Chinese acknowledgement for `oo` while preserving deliberate English selection.
+- Improve traditional-character ordering, including common forms beyond the initial sixteen candidates.
+- Reuse language-model output distributions across keystrokes without adding a model.
+- Preserve explicit syllable boundaries in long-sentence search, including those supplied by Double Pinyin; prevent mismatched candidates after the dictionary update.
+- Keep direct-digit decimal punctuation working when macOS delays input-activity statistics; verify the caret and preceding digit before using the delayed-statistics fallback.
+- Align with Windows and Cassotis Lexicon v2.8.0, including expanded everyday vocabulary and revised frequency and completion tables.
+
 ## 2.7.0 (build 8, 2026-11-12)
 
 - Add Zhineng ABC Double Pinyin, bringing the total to seven layouts.

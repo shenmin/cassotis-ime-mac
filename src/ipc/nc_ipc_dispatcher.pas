@@ -272,8 +272,8 @@ begin
                     Exit;
                 end;
                 // Partial and older clients must preserve fields they cannot
-                // express, including phrases and second/third candidate keys.
-                if (request.payload[0] < 11) and (request.payload[1] = 0) then
+                // express, including phrases and candidate-selection keys.
+                if (request.payload[0] < 13) and (request.payload[1] = 0) then
                 begin
                     if not FEngine.GetState(previous_state) then
                     begin
@@ -281,10 +281,12 @@ begin
                             c_ipc_dispatch_error_operation_failed, 'Unable to read engine state');
                         Exit;
                     end;
-                    if (request.payload[0] < 9) or (request.payload[0] = 10) then
+                    if (request.payload[0] < 9) or (request.payload[0] = 10) or (request.payload[0] = 12) then
                         engine_state.custom_phrases := previous_state.custom_phrases;
                     if request.payload[0] < 10 then
                         engine_state.second_third_candidate_keys := previous_state.second_third_candidate_keys;
+                    if request.payload[0] < 12 then
+                        engine_state.select_character_keys := previous_state.select_character_keys;
                 end;
                 operation_succeeded := FEngine.SetState(engine_state);
                 if not operation_succeeded then

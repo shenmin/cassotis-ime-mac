@@ -80,6 +80,7 @@ type
     );
     TncOneKeyCompletionKey = (ock_tab, ock_backtick);
     TncSecondThirdCandidateKeys = (stck_none, stck_semicolon_quote);
+    TncSelectCharacterKeys = (sck_none, sck_brackets);
     TncShortcutAction = (
         sa_input_mode_toggle,
         sa_punctuation_toggle,
@@ -128,6 +129,7 @@ type
         candidate_page_key_scheme: TncCandidatePageKeyScheme;
         one_key_completion_key: TncOneKeyCompletionKey;
         second_third_candidate_keys: TncSecondThirdCandidateKeys;
+        select_character_keys: TncSelectCharacterKeys;
         debug_mode: Boolean;
         shortcuts: TncShortcutConfig;
     end;
@@ -156,6 +158,7 @@ type
         candidate_page_key_scheme: TncCandidatePageKeyScheme;
         one_key_completion_key: TncOneKeyCompletionKey;
         second_third_candidate_keys: TncSecondThirdCandidateKeys;
+        select_character_keys: TncSelectCharacterKeys;
         candidate_color_scheme: Integer;
         debug_mode: Boolean;
         dictionary_variant: TncDictionaryVariant;
@@ -520,6 +523,7 @@ begin
     value.candidate_page_key_scheme := cpks_minus_plus;
     value.one_key_completion_key := ock_tab;
     value.second_third_candidate_keys := stck_none;
+    value.select_character_keys := sck_none;
     value.debug_mode := False;
     value.shortcuts.signature := c_nc_shortcut_config_signature;
     value.shortcuts.input_mode_toggle.key_code := $10;
@@ -608,6 +612,7 @@ begin
         right_value.candidate_page_key_scheme) and
         (left_value.one_key_completion_key =
         right_value.one_key_completion_key) and
+        (left_value.select_character_keys = right_value.select_character_keys) and
         (left_value.second_third_candidate_keys =
         right_value.second_third_candidate_keys) and
         (left_value.debug_mode = right_value.debug_mode) and

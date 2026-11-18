@@ -84,7 +84,7 @@ type
             const cursor_offset: Integer; const generation_id: QWord; const reported: Boolean = True): Boolean;
             override;
         function GetState(out state: TncEngineState): Boolean; override;
-        function SetState(const state: TncEngineState): Boolean; override;
+        function SetState(const incoming_state: TncEngineState): Boolean; override;
         function ClearUserDictionary: Boolean; override;
         function ImportUserWords(const path: string; out entries, imported: Integer): Boolean; override;
         function ProcessKey(const context_id: QWord; const generation_id: QWord;
@@ -259,6 +259,8 @@ begin
         state.candidate_page_key_scheme;
     config.one_key_completion_key := state.one_key_completion_key;
     config.second_third_candidate_keys := state.second_third_candidate_keys;
+    config.select_character_keys := nc_resolve_select_character_keys(
+        state.select_character_keys, state.candidate_page_key_scheme);
     config.debug_mode := state.debug_mode;
     config.shortcuts := state.shortcuts;
 end;
@@ -288,6 +290,7 @@ begin
         new_state.candidate_page_key_scheme) or
         (old_state.one_key_completion_key <>
         new_state.one_key_completion_key) or
+        (old_state.select_character_keys <> new_state.select_character_keys) or
         (old_state.second_third_candidate_keys <>
         new_state.second_third_candidate_keys) or
         (old_state.debug_mode <> new_state.debug_mode) or
@@ -343,6 +346,7 @@ begin
     next_state.one_key_completion_key :=
         engine_config.one_key_completion_key;
     next_state.second_third_candidate_keys := engine_config.second_third_candidate_keys;
+    next_state.select_character_keys := engine_config.select_character_keys;
     next_state.debug_mode := engine_config.debug_mode;
     next_state.shortcuts := engine_config.shortcuts;
     if PersistentStateChanged(FState, next_state) then
@@ -781,8 +785,9 @@ begin
     Result := True;
 end;
 
-function TncEngineService.SetState(const state: TncEngineState): Boolean;
+function TncEngineService.SetState(const incoming_state: TncEngineState): Boolean;
 var
+    state: TncEngineState;
     action: TncShortcutAction;
     phrase: TncCustomPhrase;
     clear_compositions: Boolean;
@@ -791,6 +796,12 @@ var
     previous_state: TncEngineState;
     dictionary_changed: Boolean;
 begin
+    state := incoming_state;
+    if state.select_character_keys <>
+        nc_normalize_select_character_keys(state.select_character_keys) then
+        Exit(False);
+    state.select_character_keys := nc_resolve_select_character_keys(
+        state.select_character_keys, state.candidate_page_key_scheme);
     if state.second_third_candidate_keys <>
         nc_normalize_second_third_candidate_keys(state.second_third_candidate_keys) then
         Exit(False);

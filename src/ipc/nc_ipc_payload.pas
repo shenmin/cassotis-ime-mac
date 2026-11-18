@@ -16,7 +16,7 @@ const
     c_ipc_engine_state_shortcuts_schema_version = 3;
     c_ipc_engine_state_page_size_schema_version = 4;
     // 10 omits custom phrases; 11 includes them. Both append candidate keys.
-    c_ipc_engine_state_schema_version = 11;
+    c_ipc_engine_state_schema_version = 13;
     c_ipc_payload_max_text_bytes = 1024 * 1024;
     c_ipc_payload_max_candidates = 256;
 
@@ -1279,7 +1279,7 @@ begin
         if include_custom_phrases then
             WritePayloadHeaderVersion(writer, c_ipc_engine_state_schema_version)
         else
-            WritePayloadHeaderVersion(writer, 10);
+            WritePayloadHeaderVersion(writer, 12);
         writer.WriteByte(Ord(state.input_mode));
         writer.WriteByte(Ord(state.dictionary_variant));
         writer.WriteByte(Ord(state.pinyin_scheme));
@@ -1330,6 +1330,9 @@ begin
         writer.WriteByte(Ord(state.second_third_candidate_keys));
         writer.WriteByte(0);
         writer.WriteUInt16(0);
+        writer.WriteByte(Ord(state.select_character_keys));
+        writer.WriteByte(0);
+        writer.WriteUInt16(0);
         Result := writer.Finish;
     finally
         writer.Free;
@@ -1354,6 +1357,7 @@ var
     candidate_page_key_scheme: Byte;
     one_key_completion_key: Byte;
     second_third_candidate_keys: Byte;
+    select_character_keys: Byte;
     candidate_page_size: Byte;
     reserved: Word;
     reserved_byte: Byte;
@@ -1365,6 +1369,7 @@ begin
         candidate_page_key_scheme := Ord(state.candidate_page_key_scheme);
         one_key_completion_key := Ord(state.one_key_completion_key);
         second_third_candidate_keys := Ord(state.second_third_candidate_keys);
+        select_character_keys := Ord(state.select_character_keys);
         candidate_page_size := Byte(state.candidate_page_size);
         reserved := 0;
         reserved_byte := 0;
@@ -1420,7 +1425,7 @@ begin
                 (state.punctuation_ascii_symbols = nc_normalize_punctuation_ascii_symbols(state.punctuation_ascii_symbols));
             if not Result then reader.SetError('Invalid punctuation or English preference');
         end;
-        if Result and ((version = 9) or (version >= 11)) then
+        if Result and ((version = 9) or (version = 11) or (version >= 13)) then
         begin
             Result := reader.ReadUInt32(phrase_count);
             if Result and (phrase_count > c_custom_phrase_max_count) then
@@ -1456,6 +1461,17 @@ begin
                 (reserved_byte <> 0) or (reserved <> 0)) then
             begin
                 reader.SetError('State payload contains invalid second/third candidate keys');
+                Result := False;
+            end;
+        end;
+        if Result and (version >= 12) then
+        begin
+            Result := reader.ReadByte(select_character_keys) and
+                reader.ReadByte(reserved_byte) and reader.ReadUInt16(reserved);
+            if Result and ((select_character_keys > Ord(High(TncSelectCharacterKeys))) or
+                (reserved_byte <> 0) or (reserved <> 0)) then
+            begin
+                reader.SetError('State payload contains invalid character-selection keys');
                 Result := False;
             end;
         end;
@@ -1554,6 +1570,8 @@ begin
                 TncOneKeyCompletionKey(one_key_completion_key);
             state.second_third_candidate_keys :=
                 TncSecondThirdCandidateKeys(second_third_candidate_keys);
+            state.select_character_keys := nc_resolve_select_character_keys(
+                TncSelectCharacterKeys(select_character_keys), state.candidate_page_key_scheme);
             state.debug_mode := (flags and c_state_flag_debug_mode) <> 0;
             if nc_candidate_page_key_conflicts_with_one_key_completion(
                 state.candidate_page_key_scheme,

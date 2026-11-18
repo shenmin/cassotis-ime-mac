@@ -430,6 +430,7 @@ const
         '''setting.candidate_page_key_scheme'', ' +
         '''setting.one_key_completion_key'', ' +
         '''setting.second_third_candidate_keys'', ' +
+        '''setting.select_character_keys'', ' +
         '''setting.debug_mode'', ' +
         '''setting.shortcut.disabled_mask'', ' +
         '''setting.shortcut.input_mode.key'', ' +
@@ -536,6 +537,10 @@ begin
                 (setting_value <= Ord(High(TncSecondThirdCandidateKeys))) then
                 state.second_third_candidate_keys :=
                     TncSecondThirdCandidateKeys(setting_value)
+            else if (key_name = 'setting.select_character_keys') and
+                (setting_value >= Ord(Low(TncSelectCharacterKeys))) and
+                (setting_value <= Ord(High(TncSelectCharacterKeys))) then
+                state.select_character_keys := TncSelectCharacterKeys(setting_value)
             else if key_name = 'setting.debug_mode' then
                 state.debug_mode := setting_value <> 0
             else if (key_name = 'setting.shortcut.disabled_mask') and
@@ -581,6 +586,8 @@ begin
         state.candidate_page_key_scheme :=
             nc_resolve_candidate_page_key_scheme(
             state.candidate_page_key_scheme, state.one_key_completion_key);
+        state.select_character_keys := nc_resolve_select_character_keys(
+            state.select_character_keys, state.candidate_page_key_scheme);
         nc_normalize_shortcut_config(state.shortcuts);
         FErrorMessage := '';
         Result := True;
@@ -646,6 +653,9 @@ begin
         ExecutePairStatement(c_upsert_setting,
         'setting.second_third_candidate_keys', UTF8Decode(IntToStr(
         Ord(state.second_third_candidate_keys)))) and
+        ExecutePairStatement(c_upsert_setting, 'setting.select_character_keys',
+        UTF8Decode(IntToStr(Ord(nc_resolve_select_character_keys(
+        state.select_character_keys, state.candidate_page_key_scheme))))) and
         ExecutePairStatement(c_upsert_setting, 'setting.debug_mode',
         UTF8Decode(IntToStr(Ord(state.debug_mode)))) and
         ExecutePairStatement(c_upsert_setting, 'setting.shortcut.disabled_mask',

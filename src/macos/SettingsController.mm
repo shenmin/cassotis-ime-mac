@@ -79,7 +79,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
 @interface CassotisSettingsController () <NSTableViewDataSource,NSTableViewDelegate,NSWindowDelegate,NSComboBoxDelegate,NSComboBoxDataSource>
 @end
 @implementation CassotisSettingsController {
-    NSPopUpButton *_scheme, *_dictionary, *_pageKeys, *_completionKey, *_secondThirdKeys, *_pageSize, *_theme, *_punctuationPreset;
+    NSPopUpButton *_scheme, *_dictionary, *_pageKeys, *_completionKey, *_secondThirdKeys, *_selectCharacterKeys, *_pageSize, *_theme, *_punctuationPreset;
     NSSlider *_fontSize;
     NSTextField *_fontSizeLabel, *_status, *_punctuationSymbols;
     NSButton *_fullWidth, *_punctuation, *_decimalPeriod, *_fuzzy, *_retry, *_resetAppearance, *_logging, *_debugMode, *_expandCandidates, *_rememberMode, *_autoEnglish;
@@ -161,7 +161,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     window.title=version.length?[NSString stringWithFormat:@"%@ (v%@) - 设置",CassotisProductName(),version]:[CassotisProductName() stringByAppendingString:@" - 设置"];
     window.minSize=NSMakeSize(760,540); window.releasedWhenClosed=NO; window.delegate=self;
     window.autorecalculatesKeyViewLoop=YES; [window center];
-    _sections=[NSMutableArray array]; _sectionNames=@[@"常规",@"外观",@"模糊拼音",@"快捷键",@"自定义短语",@"高级"];
+    _sections=[NSMutableArray array]; _sectionNames=@[@"常规",@"外观",@"模糊拼音",@"按键",@"快捷键",@"自定义短语",@"高级"];
     NSView *root=[[CassotisSettingsDocument alloc] init]; window.contentView=root;
     NSVisualEffectView *sidebar=[[NSVisualEffectView alloc] init]; sidebar.material=NSVisualEffectMaterialSidebar;
     sidebar.blendingMode=NSVisualEffectBlendingModeBehindWindow; sidebar.state=NSVisualEffectStateFollowsWindowActiveState;
@@ -311,12 +311,18 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     }
     _pageKeys=[self popup:@[@"− / =",@"[ / ]",@", / .",@"Shift + Tab / Tab"] identifier:@"candidate-page-keys"];
     _secondThirdKeys=[self popup:@[@"不使用",@"分号 / 单引号"] identifier:@"second-third-candidate-keys"];
+    _selectCharacterKeys=[self popup:@[@"不使用",@"[ 首字 / ] 末字"] identifier:@"select-character-keys"];
     _completionKey=[self popup:@[@"Tab",@"反引号 `"] identifier:@"completion-key"];
+    [self section:@"按键" views:@[[self card:@[[self row:@"候选翻页" control:_pageKeys],
+        [self row:@"第二、第三候选" control:_secondThirdKeys],
+        [self row:@"以词定字" control:_selectCharacterKeys],
+        [self row:@"一键补全" control:_completionKey]]],
+        [self hint:@"启用第二、第三候选键后，输入拼音时按 ; 选第二项，按单引号选第三项。双拼需要分号作韵母时优先完成拼音。"],
+        [self hint:@"以词定字：输入 ciku 后，按 [ 上屏“词”，按 ] 上屏“库”。使用当前选中候选的首字或末字，不记入单字学习；未输入拼音时仍输出标点。"],
+        [self hint:@"选择 [ / ] 翻页时，以词定字自动关闭。"]]];
     [self section:@"快捷键" views:@[[self card:shortcutRows],
         [self hint:@"点击快捷键后直接按键。按住 Ctrl、Option 或 Shift 时会立即显示；单独的 Shift 在松开时完成录制。Esc 取消。"],
         [self hint:@"中英文切换也可录制 Caps Lock。有未上屏的内容时，先提交原始字母再切换。请先在“系统设置 → 键盘 → 文字输入 → 编辑”中关闭“使用大写锁定键切换输入法”，避免切到 ABC。选择此键后，在言泉内按住 Shift 输入大写；暂不区分短按和长按。"],
-        [self card:@[[self row:@"候选翻页" control:_pageKeys],[self row:@"一键补全" control:_completionKey],[self row:@"第二、第三候选" control:_secondThirdKeys]]],
-        [self hint:@"启用后，输入拼音时按 ; 选第二项，按单引号选第三项。双拼中需要分号作韵母时优先完成拼音；空闲时仍输入标点。"],
         [self hint:@"Command、Ctrl + Space 和 Fn 系统组合键由 macOS 管理。系统输入源切换键可在“系统设置 → 键盘”中调整。"]]];
 
     _customPhrases=[[CassotisCustomPhraseEditor alloc] init];
@@ -344,12 +350,13 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     _clearLearning.accessibilityIdentifier=@"clear-learning";
     _importWords=[NSButton buttonWithTitle:@"导入输入频次…" target:self action:@selector(importWords:)];
     _importWords.accessibilityIdentifier=@"import-word-frequencies";
-    [self section:@"高级" views:@[[self card:@[_logging,
+    [self section:@"高级" views:@[[self card:@[[self row:@"导入选词习惯" control:_importWords],
+        [self row:@"用户词语与学习" control:_clearLearning]]],
+        [self hint:@"所有词库学习和模型推理均在本机进行。可以导入其他输入法导出的词语和使用次数。清除学习记录会同时删除导入的频次，不会更改设置、自定义短语或基础词库。"],
+        [self card:@[_debugMode,[self hint:@"在候选栏右下角显示参与排序的上文及其来源。默认关闭，用于排查选词问题；此开关不启用日志。"],_logging,
         [self hint:@"默认关闭。开启后记录启动和运行诊断，开关立即生效并自动保存，不中断输入。关闭后停止写入，已有日志保留。每份日志最多 2 MB，保留上一份记录。"],
         [self row:@"运行日志" control:logs]]],
-        [self card:@[_debugMode,[self hint:@"在候选栏右下角显示参与排序的上文及其来源。默认关闭，用于排查选词问题；此开关不启用日志。"]]],
-        [self card:@[[self row:@"配置工具" control:config],[self row:@"导入选词习惯" control:_importWords],[self row:@"用户词语与学习" control:_clearLearning]]],
-        [self hint:@"所有词库学习和模型推理均在本机进行。可以导入其他输入法导出的词语和使用次数。清除学习记录会同时删除导入的频次，不会更改设置、自定义短语或基础词库。"]]];
+        [self card:@[[self row:@"配置工具" control:config]]]]];
 
     NSView *padding=[[NSView alloc] init]; _endPadding=[padding.heightAnchor constraintEqualToConstant:300]; _endPadding.active=YES;
     NSMutableArray *contents=[_sections mutableCopy]; [contents addObject:padding];
@@ -371,7 +378,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     (void)tableView; (void)column;
     NSTableCellView *cell=[[NSTableCellView alloc] init];
     NSTextField *label=[NSTextField labelWithString:_sectionNames[row]]; label.font=[NSFont systemFontOfSize:13];
-    NSArray *symbols=@[@"keyboard",@"paintpalette",@"character.textbox",@"command",@"doc.text",@"slider.horizontal.3"];
+    NSArray *symbols=@[@"keyboard",@"paintpalette",@"character.textbox",@"keyboard.badge.ellipsis",@"command",@"doc.text",@"slider.horizontal.3"];
     NSImageView *icon=[NSImageView imageViewWithImage:[NSImage imageWithSystemSymbolName:symbols[row] accessibilityDescription:nil]];
     cell.textField=label; cell.imageView=icon; [cell addSubview:icon]; [cell addSubview:label];
     icon.translatesAutoresizingMaskIntoConstraints=NO; label.translatesAutoresizingMaskIntoConstraints=NO;
@@ -490,10 +497,16 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     _fontFamily.stringValue=index==NSNotFound?@"PingFang SC":_fontFamilies[index];
     [self appearanceChanged:_fontFamily];
 }
+- (void)updateCharacterKeyControls {
+    BOOL available=_ready && _pageKeys.indexOfSelectedItem!=1;
+    if(_pageKeys.indexOfSelectedItem==1) [_selectCharacterKeys selectItemAtIndex:0];
+    _selectCharacterKeys.enabled=available;
+}
 - (void)changed:(id)sender {
     (void)sender; if(_loading || !_ready || _saving) return;
     for(NSButton *rule in _rules) rule.enabled=_fuzzy.state==NSControlStateValueOn;
     _decimalPeriod.enabled=_punctuation.state==NSControlStateValueOn;
+    [self updateCharacterKeyControls];
     [self updatePunctuationControls];
     _saving=YES;
     if(![self persistSettings]) {
@@ -581,6 +594,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
         [_scheme selectItemAtIndex:_state.scheme]; [_dictionary selectItemAtIndex:_state.dictionary];
         [_pageKeys selectItemAtIndex:_state.pageKeys]; [_completionKey selectItemAtIndex:_state.completionKey];
         [_secondThirdKeys selectItemAtIndex:_state.secondThirdKeys];
+        [_selectCharacterKeys selectItemAtIndex:_state.selectCharacterKeys];
         [_pageSize selectItemAtIndex:_state.pageSize-3]; _fullWidth.state=(_state.flags&1)?1:0;
         _expandCandidates.state=(_state.flags&16)?1:0;
         _debugMode.state=(_state.flags&8)?1:0;
@@ -603,9 +617,10 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     }
     _fontSize.doubleValue=best; _loading=NO;
     // Do not present placeholder engine state as editable user preferences.
-    for(NSControl *control in @[_scheme,_dictionary,_pageKeys,_completionKey,_secondThirdKeys,_pageSize,_theme,_fontSize,
+    for(NSControl *control in @[_scheme,_dictionary,_pageKeys,_completionKey,_secondThirdKeys,_selectCharacterKeys,_pageSize,_theme,_fontSize,
         _fontFamily,_fullWidth,_punctuation,_fuzzy,_resetAppearance,_expandCandidates,_autoEnglish,_debugMode]) control.enabled=_ready;
     _decimalPeriod.enabled=_ready && _punctuation.state!=0;
+    [self updateCharacterKeyControls];
     [self updatePunctuationControls];
     for(NSButton *control in _shortcutEnabled) control.enabled=_ready;
     for(NSButton *control in _rules) control.enabled=_ready && _fuzzy.state!=0;
@@ -642,6 +657,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     state.scheme=(uint8_t)_scheme.indexOfSelectedItem; state.dictionary=(uint8_t)_dictionary.indexOfSelectedItem;
     state.pageKeys=(uint8_t)_pageKeys.indexOfSelectedItem; state.completionKey=(uint8_t)_completionKey.indexOfSelectedItem;
     state.secondThirdKeys=(uint8_t)_secondThirdKeys.indexOfSelectedItem;
+    state.selectCharacterKeys=state.pageKeys==1?0:(uint8_t)_selectCharacterKeys.indexOfSelectedItem;
     state.pageSize=(uint8_t)(_pageSize.indexOfSelectedItem+3);
     state.flags=(_fullWidth.state?1:0)|(_punctuation.state?2:0)|(_fuzzy.state?4:0)|(_debugMode.state?8:0)|(_expandCandidates.state?16:0)|(_decimalPeriod.state?32:0); state.fuzzy=0;
     for(NSUInteger i=0;i<_rules.count;++i) if(_rules[i].state) state.fuzzy|=1<<i;
