@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.8.0 (build 9, unreleased)
+## 2.8.0 (build 9, 2026-11-19)
 
 - Add optional `[` / `]` selection of the highlighted candidate's first / last character, without learning that character. Bracket paging takes priority.
 - Organize paging, candidate selection and completion on a dedicated Keys page; retain native instant saving.
