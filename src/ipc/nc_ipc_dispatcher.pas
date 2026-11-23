@@ -273,7 +273,7 @@ begin
                 end;
                 // Partial and older clients must preserve fields they cannot
                 // express, including phrases and candidate-selection keys.
-                if (request.payload[0] < 13) and (request.payload[1] = 0) then
+                if (request.payload[0] < 15) and (request.payload[1] = 0) then
                 begin
                     if not FEngine.GetState(previous_state) then
                     begin
@@ -281,8 +281,12 @@ begin
                             c_ipc_dispatch_error_operation_failed, 'Unable to read engine state');
                         Exit;
                     end;
-                    if (request.payload[0] < 9) or (request.payload[0] = 10) or (request.payload[0] = 12) then
+                    if (request.payload[0] < 9) or not Odd(request.payload[0]) then
                         engine_state.custom_phrases := previous_state.custom_phrases;
+                    if request.payload[0] < 14 then
+                    begin
+                        engine_state.candidate_vertical := previous_state.candidate_vertical and not engine_state.candidate_expand_on_paging;
+                    end;
                     if request.payload[0] < 10 then
                         engine_state.second_third_candidate_keys := previous_state.second_third_candidate_keys;
                     if request.payload[0] < 12 then
@@ -300,16 +304,32 @@ begin
                     Exit;
                 FShutdownRequested := True;
             end;
-        imt_import_user_words:
+        imt_import_user_words, imt_export_user_words, imt_forget_user_words:
             begin
                 if not nc_try_decode_import_user_words_payload(request.payload, import_path, payload_error) then
                 begin
                     SetErrorResponse(request, response, c_ipc_dispatch_error_invalid_payload, payload_error);
                     Exit;
                 end;
-                if not FEngine.ImportUserWords(import_path, import_entries, import_count) then
+                case request.message_type of
+                    imt_import_user_words:
+                        operation_succeeded := FEngine.ImportUserWords(import_path, import_entries, import_count);
+                    imt_export_user_words:
+                        begin
+                            operation_succeeded := FEngine.ExportUserWords(import_path, import_count);
+                            import_entries := import_count;
+                        end;
+                    imt_forget_user_words:
+                        begin
+                            operation_succeeded := FEngine.ForgetUserWords(import_path, import_count);
+                            import_entries := import_count;
+                        end;
+                else
+                    operation_succeeded := False;
+                end;
+                if not operation_succeeded then
                     SetErrorResponse(request, response, c_ipc_dispatch_error_operation_failed,
-                        'Unable to import word frequencies')
+                        'Unable to complete the learned-word operation')
                 else
                     response.payload := nc_encode_import_user_words_result(import_entries, import_count);
             end;

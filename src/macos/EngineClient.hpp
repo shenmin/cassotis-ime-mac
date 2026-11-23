@@ -40,7 +40,7 @@ struct PreeditWarning { uint32_t start = 0, length = 0; uint8_t kind = 0; };
 enum class CompletionSource : uint8_t { None, UserExact, BaseExact, Transition, LongTransition, LongNeural, DocumentCopy, ExactTailFallback, CustomPhrase };
 enum class LeftContextSource : uint8_t { None, Segment, Document, Session };
 struct Result {
-    bool handled = false, pending = false;
+    bool handled = false, pending = false, vertical = false;
     int32_t selected = -1, page = 0, pages = 0;
     std::string commit, preedit, query, completion;
     std::string selectionKeys = "123456789", rawInput;
@@ -88,6 +88,7 @@ State decodeState(const Bytes &data);
 class EngineClient {
     int fd_ = -1;
     uint64_t request_ = 0, generation_ = 0;
+    UserWordImportResult wordFileOperation(uint16_t type, const std::string &path, int timeoutMs);
     Bytes transact(uint16_t type, const Bytes &payload, int timeoutMs = 1000);
 public:
     ~EngineClient() { disconnect(); }
@@ -109,5 +110,7 @@ public:
     void setState(const State &state);
     void clearLearning();
     UserWordImportResult importUserWords(const std::string &path);
+    uint32_t exportUserWords(const std::string &path);
+    uint32_t forgetUserWords(const std::string &path);
 };
 }

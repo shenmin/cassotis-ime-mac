@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.9.0 (build 10)
+
+- Preserve learned words, selection counts and recent choices when upgrading the built-in dictionaries or switching between simplified and traditional Chinese.
+- Add a vertical candidate list with one word per row and Up/Down navigation.
+- Export multi-character learned words and their counts to CSV. Search by text or Pinyin prefix and forget selected readings. Imported counts preserve ordinary learning without triggering recent-choice priority.
+- Update the existing local character model with sentence-level distillation from Qwen3.5-9B-Base. Retrain seven boosted-tree models, including a new gate for long-sentence repairs, and protect frequent conversational readings.
+- Update to Cassotis Lexicon v2.9.0, with 269,924 simplified and 272,681 traditional readings.
+
 ## 2.8.0 (build 9, 2026-11-19)
 
 - Add optional `[` / `]` selection of the highlighted candidate's first / last character, without learning that character. Bracket paging takes priority.

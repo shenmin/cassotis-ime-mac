@@ -126,6 +126,7 @@ type
         custom_phrases: TncCustomPhraseList;
         candidate_page_size: Integer;
         candidate_expand_on_paging: Boolean;
+        candidate_vertical: Boolean;
         candidate_page_key_scheme: TncCandidatePageKeyScheme;
         one_key_completion_key: TncOneKeyCompletionKey;
         second_third_candidate_keys: TncSecondThirdCandidateKeys;
@@ -155,6 +156,7 @@ type
         candidate_font_size: Integer;
         candidate_page_size: Integer;
         candidate_expand_on_paging: Boolean;
+        candidate_vertical: Boolean;
         candidate_page_key_scheme: TncCandidatePageKeyScheme;
         one_key_completion_key: TncOneKeyCompletionKey;
         second_third_candidate_keys: TncSecondThirdCandidateKeys;
@@ -369,6 +371,7 @@ type
     TncEngineResult = record
         handled: Boolean;
         async_pending: Boolean;
+        candidate_vertical: Boolean;
         commit_text: string;
         preedit_text: string;
         preedit_warnings: TncPreeditWarningSpans;
@@ -483,6 +486,7 @@ procedure nc_initialize_engine_result(out value: TncEngineResult);
 begin
     value.handled := False;
     value.async_pending := False;
+    value.candidate_vertical := False;
     value.commit_text := '';
     value.preedit_text := '';
     value.preedit_warnings := nil;
@@ -606,6 +610,7 @@ begin
         right_value.punctuation_full_width) and
         (left_value.candidate_page_size =
         right_value.candidate_page_size) and
+        (left_value.candidate_vertical = right_value.candidate_vertical) and
         (left_value.candidate_expand_on_paging =
         right_value.candidate_expand_on_paging) and
         (left_value.candidate_page_key_scheme =

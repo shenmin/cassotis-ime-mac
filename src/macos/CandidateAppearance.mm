@@ -104,6 +104,7 @@ CassotisCandidateColors CassotisColors(NSInteger theme, NSAppearance *appearance
 @interface CassotisCandidateContent : NSView
 @property(nonatomic) NSSize preferredSize;
 @property(nonatomic) CGFloat rowHeight;
+@property(nonatomic) BOOL vertical;
 @property(nonatomic, strong) NSArray<NSArray<NSView *> *> *rows;
 @property(nonatomic, strong) NSView *activeRow;
 @property(nonatomic, strong) NSView *activeRowIndicator;
@@ -150,7 +151,7 @@ CassotisCandidateColors CassotisColors(NSInteger theme, NSAppearance *appearance
         }
         for(NSUInteger i=0;i<items.count;++i) {
             NSView *item=items[i]; CGFloat width=floor(MIN(widths[i],low));
-            item.frame=NSMakeRect(x,y,width,self.rowHeight);
+            item.frame=NSMakeRect(x,y,self.vertical?inner:width,self.rowHeight);
             item.subviews[0].frame=item.bounds;
             if(item.subviews.count>1) item.subviews[1].frame=NSMakeRect(MAX(0,width-22),0,MIN(22,width),self.rowHeight);
             x+=width+gap;
@@ -272,7 +273,9 @@ NSView *CassotisCandidateView(const cassotis::Result &r, CGFloat size, NSString 
     // Keep the footer even for empty, pending or changing completion results.
     // Use font metrics rather than the current strings to keep their height fixed.
     background.rowHeight=ceil(MAX(size*1.4,font.ascender-font.descender+font.leading))+8;
-    std::vector<cassotis::CandidatePage> pages=r.candidatePages;
+    background.vertical=r.vertical;
+    std::vector<cassotis::CandidatePage> pages;
+    if(!r.vertical) pages=r.candidatePages;
     if(pages.empty()) pages.push_back({r.page,r.candidates});
     NSMutableArray<NSArray<NSView *> *> *rows=[NSMutableArray array];
     CGFloat rowWidth=0;
@@ -338,7 +341,14 @@ NSView *CassotisCandidateView(const cassotis::Result &r, CGFloat size, NSString 
         [items addObject:item];
         currentWidth+=button.intrinsicContentSize.width+(i?4:0); [background addSubview:item]; ++i;
     }
-        rowWidth=MAX(rowWidth,currentWidth); [rows addObject:items];
+        if(r.vertical && items.count) {
+            for(NSView *item in items) {
+                rowWidth=MAX(rowWidth,item.subviews[0].intrinsicContentSize.width);
+                [rows addObject:@[item]];
+            }
+        } else {
+            rowWidth=MAX(rowWidth,currentWidth); [rows addObject:items];
+        }
     }
     background.rows=rows;
     NSView *footer=[[NSView alloc] init]; footer.accessibilityIdentifier=@"candidate-completion-row";

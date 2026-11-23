@@ -16,7 +16,7 @@ const
     c_ipc_engine_state_shortcuts_schema_version = 3;
     c_ipc_engine_state_page_size_schema_version = 4;
     // 10 omits custom phrases; 11 includes them. Both append candidate keys.
-    c_ipc_engine_state_schema_version = 13;
+    c_ipc_engine_state_schema_version = 15;
     c_ipc_payload_max_text_bytes = 1024 * 1024;
     c_ipc_payload_max_candidates = 256;
 
@@ -94,10 +94,11 @@ const
     c_state_flag_debug_mode = $08;
     c_state_flag_expand_candidates = $10;
     c_state_flag_decimal_period = $20;
+    c_state_flag_vertical_candidates = $40;
     c_state_known_flags = c_state_flag_full_width or
         c_state_flag_punctuation_full_width or
         c_state_flag_fuzzy_pinyin_enabled or c_state_flag_debug_mode or
-        c_state_flag_expand_candidates or c_state_flag_decimal_period;
+        c_state_flag_expand_candidates or c_state_flag_decimal_period or c_state_flag_vertical_candidates;
     c_engine_result_flag_async_pending = $01;
     c_engine_result_known_flags = c_engine_result_flag_async_pending;
     c_shortcut_flag_shift = $01;
@@ -980,6 +981,7 @@ begin
                 raise EncIpcPayloadError.Create('Invalid debug context snapshot');
             schema_version := 7;
         end;
+        if engine_result.candidate_vertical then schema_version := 8;
         if (engine_result.selection_keys <> '') and (engine_result.selection_keys <> 'abcd') and
             (engine_result.selection_keys <> '123456789') then
             raise EncIpcPayloadError.Create('Invalid candidate selection keys');
@@ -1058,6 +1060,7 @@ begin
             writer.WriteByte(0);
             writer.WriteString(engine_result.debug_context_text);
         end;
+        if schema_version >= 8 then writer.WriteBoolean(engine_result.candidate_vertical);
         Result := writer.Finish;
     finally
         writer.Free;
@@ -1087,7 +1090,7 @@ begin
     reader := TncIpcPayloadReader.Create(payload);
     try
         Result := ReadPayloadHeaderVersion(reader, version) and
-            ((version >= 1) and (version <= 7)) and
+            ((version >= 1) and (version <= 8)) and
             reader.ReadBoolean(engine_result.handled) and
             reader.ReadUInt16(reserved16) and reader.ReadByte(result_flags) and
             reader.ReadInt32(engine_result.selected_index) and
@@ -1100,7 +1103,7 @@ begin
             reader.ReadString(engine_result.completion_text) and
             reader.ReadString(engine_result.error_text) and
             reader.ReadUInt32(candidate_count);
-        if (version < 1) or (version > 7) then
+        if (version < 1) or (version > 8) then
             reader.SetError('Unsupported engine result version');
         if Result and ((reserved16 <> 0) or
             ((result_flags and not c_engine_result_known_flags) <> 0)) then
@@ -1255,6 +1258,7 @@ begin
             end;
             if not Result then reader.SetError('Invalid debug context');
         end;
+        if Result and (version >= 8) then Result := reader.ReadBoolean(engine_result.candidate_vertical);
         Result := Result and reader.Finish(error_text);
         if not Result then
         begin
@@ -1279,7 +1283,7 @@ begin
         if include_custom_phrases then
             WritePayloadHeaderVersion(writer, c_ipc_engine_state_schema_version)
         else
-            WritePayloadHeaderVersion(writer, 12);
+            WritePayloadHeaderVersion(writer, 14);
         writer.WriteByte(Ord(state.input_mode));
         writer.WriteByte(Ord(state.dictionary_variant));
         writer.WriteByte(Ord(state.pinyin_scheme));
@@ -1292,7 +1296,9 @@ begin
             flags := flags or c_state_flag_fuzzy_pinyin_enabled;
         if state.debug_mode then
             flags := flags or c_state_flag_debug_mode;
-        if state.candidate_expand_on_paging then
+        if state.candidate_vertical then
+            flags := flags or c_state_flag_vertical_candidates
+        else if state.candidate_expand_on_paging then
             flags := flags or c_state_flag_expand_candidates;
         if state.decimal_period_after_digit then flags := flags or c_state_flag_decimal_period;
         writer.WriteByte(flags);
@@ -1425,7 +1431,7 @@ begin
                 (state.punctuation_ascii_symbols = nc_normalize_punctuation_ascii_symbols(state.punctuation_ascii_symbols));
             if not Result then reader.SetError('Invalid punctuation or English preference');
         end;
-        if Result and ((version = 9) or (version = 11) or (version >= 13)) then
+        if Result and ((version >= 9) and Odd(version)) then
         begin
             Result := reader.ReadUInt32(phrase_count);
             if Result and (phrase_count > c_custom_phrase_max_count) then
@@ -1495,6 +1501,11 @@ begin
             reader.SetError('State payload contains invalid flags');
             Result := False;
         end;
+        if Result and ((flags and c_state_flag_vertical_candidates) <> 0) and
+            ((version < 14) or ((flags and c_state_flag_expand_candidates) <> 0)) then
+        begin
+            reader.SetError('Invalid vertical candidate layout'); Result := False;
+        end;
         if Result and (version < 7) and ((flags and c_state_flag_decimal_period) <> 0) then
         begin
             reader.SetError('Decimal period requires state schema 7');
@@ -1563,6 +1574,7 @@ begin
             state.fuzzy_pinyin_rules :=
                 nc_fuzzy_pinyin_rules_from_mask(fuzzy_rules_mask);
             state.candidate_page_size := candidate_page_size;
+            state.candidate_vertical := (flags and c_state_flag_vertical_candidates) <> 0;
             state.candidate_expand_on_paging := (flags and c_state_flag_expand_candidates) <> 0;
             state.candidate_page_key_scheme :=
                 TncCandidatePageKeyScheme(candidate_page_key_scheme);

@@ -5,3 +5,4 @@
 @end
 
 void CassotisShowAboutPanel(void);
+BOOL CassotisSettingsFieldKey(NSControl *control, NSEvent *event);

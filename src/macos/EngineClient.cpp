@@ -61,7 +61,7 @@ static bool sameCandidate(const Candidate &a,const Candidate &b) {
     return a.text==b.text && a.comment==b.comment && a.source==b.source && a.kind==b.kind && a.deletable==b.deletable;
 }
 Result decodeResult(const Bytes &data) {
-    Reader r(data); auto version=r.schema(); require(version>=1 && version<=7,"Unsupported result schema"); Result v;
+    Reader r(data); auto version=r.schema(); require(version>=1 && version<=8,"Unsupported result schema"); Result v;
     auto handled=r.u8(); require(handled<=1 && r.u16()==0,"Invalid result flags"); v.handled=handled;
     auto flags=r.u8(); require((flags&~1)==0,"Invalid result flags"); v.pending=flags&1;
     v.selected=int32_t(r.u32()); v.page=int32_t(r.u32()); v.pages=int32_t(r.u32()); auto error=r.u32();
@@ -132,6 +132,7 @@ Result decodeResult(const Bytes &data) {
         v.debugContextEnabled=enabled; v.debugContextReported=reported;
         v.debugContextSource=LeftContextSource(source);
     }
+    if(version>=8) { auto vertical=r.u8(); require(vertical<=1,"Invalid candidate layout"); v.vertical=vertical; }
     r.end(); require(v.selected>=-1 && v.selected<int32_t(count),"Invalid candidate selection");
     require(v.page>=0 && v.pages>=0 && (v.pages==0 || v.page<v.pages),"Invalid candidate page");
     if(error) throw std::runtime_error("Engine error: "+message);
@@ -145,7 +146,7 @@ std::string normalizePunctuationASCII(const std::string &value) {
     return result;
 }
 Bytes encodeState(const State &s) {
-    Writer w; w.schema(s.includesCustomPhrases?13:12); w.u8(s.mode); w.u8(s.dictionary); w.u8(s.scheme); w.u8(s.flags);
+    Writer w; w.schema(s.includesCustomPhrases?15:14); w.u8(s.mode); w.u8(s.dictionary); w.u8(s.scheme); w.u8(s.flags);
     w.u32(s.fuzzy); w.u8(s.pageKeys); w.u8(s.completionKey); w.u8(s.pageSize); w.u8(0);
     for(auto &k:s.shortcuts) { w.u16(k.key); w.u8(k.modifiers); w.u8(0); }
     uint8_t disabled=0; for(int i=0;i<5;++i) if(s.shortcuts[i].disabled) disabled|=1<<i;
@@ -161,8 +162,8 @@ Bytes encodeState(const State &s) {
     return w.data;
 }
 State decodeState(const Bytes &data) {
-    Reader r(data); auto schema=r.schema(); require(schema>=4 && schema<=13,"Unsupported state schema"); State s;
-    s.includesCustomPhrases=schema==9 || schema==11 || schema>=13;
+    Reader r(data); auto schema=r.schema(); require(schema>=4 && schema<=15,"Unsupported state schema"); State s;
+    s.includesCustomPhrases=schema>=9 && (schema%2)==1;
     s.mode=r.u8(); s.dictionary=r.u8(); s.scheme=r.u8(); s.flags=r.u8(); s.fuzzy=r.u32();
     s.pageKeys=r.u8(); s.completionKey=r.u8(); s.pageSize=r.u8(); require(r.u8()==0,"Invalid state flags");
     for(auto &k:s.shortcuts) { k.key=r.u16(); k.modifiers=r.u8(); require(r.u8()==0 && !(k.modifiers&~7),"Invalid shortcut"); }
@@ -194,7 +195,7 @@ State decodeState(const Bytes &data) {
         require(s.selectCharacterKeys<=1 && r.u8()==0 && r.u16()==0,"Invalid character-selection keys");
     }
     if(s.pageKeys==1) s.selectCharacterKeys=0;
-    r.end(); require(s.mode<=1 && s.dictionary<=1 && s.scheme<=7 && !(s.flags&~(schema>=7?63:schema>=6?31:15)) &&
+    r.end(); require(s.mode<=1 && s.dictionary<=1 && s.scheme<=7 && !(s.flags&~(schema>=14?127:schema>=7?63:schema>=6?31:15)) && (s.flags&80)!=80 &&
         s.pageKeys<=3 && s.completionKey<=1 && s.pageSize>=3 && s.pageSize<=9,"Invalid state values");
     if(schema<7) s.flags|=32; // Older installations inherit the enabled default.
     return s;
@@ -292,11 +293,20 @@ UserWordImportResult decodeUserWordImportResult(const Bytes &data) {
     require(result.entries<=INT32_MAX && result.imported<=result.entries,"Invalid import counts");
     return result;
 }
-UserWordImportResult EngineClient::importUserWords(const std::string &path) {
-    require(!path.empty() && path.front()=='/' && path.find('\0')==std::string::npos,"Invalid import file path");
+UserWordImportResult EngineClient::wordFileOperation(uint16_t type, const std::string &path, int timeoutMs) {
+    require(!path.empty() && path.front()=='/' && path.find('\0')==std::string::npos,"Invalid learned-word file path");
     Writer w; w.schema(); w.string(path);
     // Bulk import has its own deadline; normal keystrokes remain bounded to 1 s.
-    try { return decodeUserWordImportResult(transact(20,w.data,10000)); }
+    try { return decodeUserWordImportResult(transact(type,w.data,timeoutMs)); }
     catch(...) { disconnect(); throw; }
+}
+UserWordImportResult EngineClient::importUserWords(const std::string &path) {
+    return wordFileOperation(20,path,10000);
+}
+uint32_t EngineClient::exportUserWords(const std::string &path) {
+    return wordFileOperation(21,path,60000).imported;
+}
+uint32_t EngineClient::forgetUserWords(const std::string &path) {
+    return wordFileOperation(22,path,60000).imported;
 }
 }

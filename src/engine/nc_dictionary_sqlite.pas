@@ -343,6 +343,8 @@ type
         destructor Destroy; override;
         function open: Boolean;
         function open_deferred: Boolean;
+        function open_for_input(const variant: TncDictionaryVariant;
+            const defer_optional_models: Boolean = False): Boolean;
         function reload_user_dictionary: Boolean;
         procedure set_user_dictionary_variant(const variant: TncDictionaryVariant);
         procedure close;
@@ -484,6 +486,9 @@ type
         function clear_user_dictionary: Boolean; override;
         function import_user_choices(const entries: TncUserWordImportEntries;
             out imported: Integer): Boolean; override;
+        function export_user_choices(out entries: TncUserWordImportEntries): Boolean; override;
+        function forget_user_choices(const entries: TncUserWordImportEntries;
+            out removed: Integer): Boolean; override;
         function get_word_frequency_score(const text: string): Integer; override;
         function get_conversation_frequency_score(const text: string): Integer; override;
         function get_candidate_penalty(const pinyin: string; const text: string): Integer; override;
@@ -522,6 +527,10 @@ var
 const
     c_recent_explicit_user_choice_bonus = 1200;
     c_recent_explicit_user_choice_bonus_min = 200;
+    // Two choices at most this far apart start a recent repeated choice, and
+    // it lasts this long after the last one (the user, 2026-11-15: two
+    // choices, an hour or two).
+    c_recent_choice_window = 2 * 60 * 60;
 
     // An additive reading is selectable, but is not another observation of the
     // same text. With no counted reading, retain one strongest curated row.
@@ -11437,6 +11446,19 @@ begin
     Result := open_internal(True);
 end;
 
+function TncSqliteDictionary.open_for_input(const variant: TncDictionaryVariant;
+    const defer_optional_models: Boolean): Boolean;
+begin
+    // A new base lexicon can add a word the user learned or change the
+    // readings it validates. Opening it must preserve the user's choices.
+    // The additive import from older, combined dictionaries still applies.
+    set_user_dictionary_variant(variant);
+    m_prune_user_entries_on_open := False;
+    Result := open_internal(defer_optional_models);
+    if Result and not defer_optional_models then
+        migrate_user_entries;
+end;
+
 function TncSqliteDictionary.reload_user_dictionary: Boolean;
 begin
     Result := False;
@@ -17288,9 +17310,6 @@ function TncSqliteDictionary.is_recent_repeated_query_choice(const query_key: st
 const
     query_sql = 'SELECT last_used, previous_used FROM dict_user_stats ' +
         'WHERE pinyin = ?1 AND text = ?2 LIMIT 1';
-    // Two choices at most this far apart start it, and it lasts this long
-    // after the last one (the user, 2026-11-15: two choices, an hour or two).
-    c_recent_choice_window = 2 * 60 * 60;
 var
     normalized_query: string;
     text_key: string;
@@ -19695,6 +19714,12 @@ const
     stats_sql = 'UPDATE dict_user_stats SET commit_count = commit_count + ?3 ' +
         'WHERE pinyin = ?1 AND text = ?2';
     user_sql = 'UPDATE dict_user SET weight = weight + ?3 WHERE pinyin = ?1 AND text = ?2';
+    // An imported word is learned for good, never a recent repeated choice:
+    // the import is no choice before the last, and its time lies outside the
+    // window, so neither importing twice nor one choice soon after an import
+    // puts the word first for two hours (the user, 2026-11-19).
+    settle_sql = 'UPDATE dict_user_stats SET previous_used = 0, ' +
+        'last_used = CAST(strftime(''%s'',''now'') AS INTEGER) - ?3 WHERE pinyin = ?1 AND text = ?2';
 var
     items: TncUserWordImportEntries;
     order: TArray<Integer>;
@@ -19793,6 +19818,7 @@ begin
                 add_commits(stats_sql, user_storage_text('dict_user_stats', key, text), extra);
                 add_commits(user_sql, user_storage_text('dict_user', key, text), extra);
             end;
+            add_commits(settle_sql, user_storage_text('dict_user_stats', key, text), c_recent_choice_window + 1);
             Inc(imported);
         end;
         Result := m_user_connection.exec('COMMIT;');
@@ -19806,6 +19832,180 @@ begin
         clear_user_read_caches;
     end;
     if Result then note_user_data_changed;
+end;
+
+function compare_exported_words(constref left, right: TncUserWordImportEntry): Integer;
+begin
+    Result := right.count - left.count;
+    if Result = 0 then Result := CompareStr(left.pinyin, right.pinyin);
+    if Result = 0 then Result := CompareStr(left.text, right.text);
+end;
+
+function TncSqliteDictionary.export_user_choices(out entries: TncUserWordImportEntries): Boolean;
+const
+    // A word the user dictionary holds as an entry (dict_user, a literal word
+    // pieced from abbreviations) or as a choice (dict_user_stats, base words
+    // too), with the larger of its counts.
+    select_sql = 'SELECT pinyin, text, MAX(count_value) FROM (' +
+        'SELECT pinyin, text, commit_count AS count_value FROM dict_user_stats ' +
+        'UNION ALL SELECT pinyin, text, weight FROM dict_user ' +
+        'UNION ALL SELECT pinyin, text, 1 FROM dict_user_literal) ' +
+        'GROUP BY pinyin, text';
+var
+    stmt: Psqlite3_stmt;
+    found: TDictionary<string, Integer>;
+    pinyin, text, key: string;
+    count, units, idx, step_result: Integer;
+    pair: TPair<string, Integer>;
+    items: TList<TncUserWordImportEntry>;
+    item: TncUserWordImportEntry;
+begin
+    entries := nil;
+    Result := False;
+    if (not ensure_open) or (not m_user_ready) or (m_user_connection = nil) then
+        Exit;
+    found := TDictionary<string, Integer>.Create;
+    items := TList<TncUserWordImportEntry>.Create;
+    try
+        stmt := nil;
+        try
+            if not m_user_connection.prepare(select_sql, stmt) then
+                Exit;
+            while True do
+            begin
+                step_result := m_user_connection.step(stmt);
+                if step_result = SQLITE_DONE then Break;
+                if step_result <> SQLITE_ROW then Exit;
+                pinyin := LowerCase(Trim(m_user_connection.ColumnText(stmt, 0)));
+                text := user_text_for_script(pinyin, Trim(m_user_connection.ColumnText(stmt, 1)));
+                count := Max(1, m_user_connection.ColumnInt(stmt, 2));
+                // A single character learns only while its recent repeated
+                // choice holds; an import would bring nothing back.
+                units := 0;
+                for idx := 1 to Length(text) do
+                    if (Ord(text[idx]) < $DC00) or (Ord(text[idx]) > $DFFF) then
+                        Inc(units);
+                if (units < 2) or (pinyin = '') or (not is_full_pinyin_key(pinyin)) then
+                    Continue;
+                // Two stored scripts of one word are one word.
+                key := pinyin + #1 + text;
+                if (not found.ContainsKey(key)) or (found[key] < count) then
+                    found.AddOrSetValue(key, count);
+            end;
+        finally
+            if stmt <> nil then
+                m_user_connection.finalize(stmt);
+        end;
+        for pair in found do
+        begin
+            idx := Pos(#1, pair.Key);
+            item.pinyin := Copy(pair.Key, 1, idx - 1);
+            item.text := Copy(pair.Key, idx + 1, MaxInt);
+            item.count := pair.Value;
+            items.Add(item);
+        end;
+        entries := items.ToArray;
+        TArrayHelper<TncUserWordImportEntry>.Sort(entries,
+            TComparer<TncUserWordImportEntry>.Construct(compare_exported_words));
+        Result := True;
+    finally
+        items.Free;
+        found.Free;
+    end;
+end;
+
+function TncSqliteDictionary.forget_user_choices(const entries: TncUserWordImportEntries;
+    out removed: Integer): Boolean;
+const
+    tables: array[0..2] of string = ('dict_user', 'dict_user_stats', 'dict_user_literal');
+    exists_sql = 'SELECT 1 FROM dict_user WHERE pinyin = ?1 AND text = ?2 UNION ALL ' +
+        'SELECT 1 FROM dict_user_stats WHERE pinyin = ?1 AND text = ?2 UNION ALL ' +
+        'SELECT 1 FROM dict_user_literal WHERE pinyin = ?1 AND text = ?2 LIMIT 1';
+    deletes: array[0..5] of string = (
+        'DELETE FROM dict_user WHERE pinyin = ?1 AND text = ?2',
+        'DELETE FROM dict_user_stats WHERE pinyin = ?1 AND text = ?2',
+        'DELETE FROM dict_user_literal WHERE pinyin = ?1 AND text = ?2',
+        'DELETE FROM dict_user_query_latest WHERE query_pinyin = ?1 AND text = ?2',
+        'DELETE FROM dict_user_context_query_choice WHERE query_pinyin = ?1 AND text = ?2',
+        'DELETE FROM dict_user_query_path WHERE query_pinyin = ?1 AND replace(path_text, char(3), '''') = ?2');
+var
+    entry: TncUserWordImportEntry;
+    stored: TList<string>;
+    table_name, pinyin, text, value, sql: string;
+    any_found: Boolean;
+
+    function step_for_word(const command, stored_text: string): Integer;
+    var
+        stmt: Psqlite3_stmt;
+    begin
+        stmt := nil;
+        try
+            if not (m_user_connection.prepare(command, stmt) and
+                m_user_connection.BindText(stmt, 1, pinyin) and
+                m_user_connection.BindText(stmt, 2, stored_text)) then
+                raise Exception.Create('Unable to prepare learned-word operation');
+            Result := m_user_connection.step(stmt);
+            if not (Result in [SQLITE_ROW, SQLITE_DONE]) then
+                raise Exception.Create('Unable to update learned words');
+        finally
+            if stmt <> nil then m_user_connection.finalize(stmt);
+        end;
+    end;
+
+begin
+    removed := 0;
+    Result := False;
+    if (not ensure_open) or (not m_user_ready) or (m_user_connection = nil) then
+        Exit;
+    stored := TList<string>.Create;
+    try
+        if m_write_batch_depth <> 0 then Exit;
+        begin_learning_batch;
+        if m_write_batch_depth <> 1 then Exit;
+        try
+            for entry in entries do
+            begin
+                pinyin := LowerCase(Trim(entry.pinyin));
+                text := Trim(entry.text);
+                if (pinyin = '') or (text = '') then
+                    Continue;
+                // The text as shown may be stored in the other script.
+                stored.Clear;
+                stored.Add(text);
+                for table_name in tables do
+                begin
+                    value := user_storage_text(table_name, pinyin, text);
+                    if not stored.Contains(value) then
+                        stored.Add(value);
+                end;
+                any_found := False;
+                for value in stored do
+                begin
+                    if step_for_word(exists_sql, value) <> SQLITE_ROW then Continue;
+                    any_found := True;
+                    for sql in deletes do
+                        if step_for_word(sql, value) <> SQLITE_DONE then
+                            raise Exception.Create('Unable to forget learned word');
+                end;
+                if any_found then
+                    Inc(removed);
+            end;
+            Result := m_user_connection.exec('COMMIT;');
+            if Result then m_write_batch_depth := 0;
+        finally
+            if not Result then
+            begin
+                rollback_learning_batch;
+                removed := 0;
+            end;
+        end;
+    finally
+        stored.Free;
+    end;
+    m_user_storage_text_cache.Clear;
+    clear_user_read_caches;
+    if Result then note_user_data_changed;
+    m_literal_user_words_available := -1;
 end;
 
 function TncSqliteDictionary.get_word_frequency_score(const text: string): Integer;

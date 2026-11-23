@@ -134,7 +134,7 @@ NSRect CassotisPanelFrameAtCaret(NSRect caret, NSSize size, NSRect visible) {
     NSSize fitting=self.contentView.fittingSize;
     fitting.width=MAX(180,fitting.width);
     NSRect anchorCaret=caret;
-    if(r.candidatePages.size()>1 && self.visible && _lastClient==client && _lastQuery==r.query &&
+    if(!r.vertical && r.candidatePages.size()>1 && self.visible && _lastClient==client && _lastQuery==r.query &&
         fabs(NSMinY(caret)-NSMinY(_lastCaret))<0.5 && NSEqualRects(visible,_lastVisible))
         anchorCaret.origin.x=NSMinX(self.frame);
     [self setFrame:CassotisPanelFrameAtCaret(anchorCaret,fitting,visible) display:YES];

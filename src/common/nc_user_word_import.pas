@@ -13,7 +13,10 @@ unit nc_user_word_import;
     text, its pinyin and optionally the count, in any order (the pinyin is
     the field of Latin letters, the count the field of digits).
   Blank lines and lines starting with # are no entries; any other line that
-  is not one counts as skipped. }
+  is not one counts as skipped.
+  The user dictionary's export is written in the comma form, one word a
+  line ("text,pinyin,count"), and only lines that read back as they were
+  written: the file imports as it is. }
 
 interface
 
@@ -36,10 +39,20 @@ function nc_parse_user_word_import(const content: string;
   are valid UTF-8, else GBK, for files exported from a Chinese Windows system. }
 function nc_read_user_word_import_file(const path: string; out content: string): Boolean;
 
+{ The line of an entry in the comma form, when it reads back as the same
+  entry (a text with Latin letters, a comma or a quote does not). }
+function nc_format_user_word_line(const entry: TncUserWordImportEntry; out line: string): Boolean;
+
+{ The export file: a comment line that names it, then the entries that read
+  back, in UTF-8 with a byte order mark (spreadsheet programs take the file
+  for ANSI without it) and Windows line breaks. }
+function nc_write_user_word_export_file(const path: string; const entries: TncUserWordImportEntries;
+    out written: Integer): Boolean;
+
 implementation
 
 uses
-    Classes, nc_types;
+    Classes, BaseUnix, nc_types;
 
 const
     c_dash = #$2014;
@@ -243,6 +256,73 @@ begin
         Result := True;
     except
         content := '';
+    end;
+end;
+
+function nc_format_user_word_line(const entry: TncUserWordImportEntry; out line: string): Boolean;
+var
+    parsed: TncUserWordImportEntries;
+    skipped: Integer;
+begin
+    line := '';
+    Result := False;
+    if (entry.text = '') or (entry.pinyin = '') or (entry.count <= 0) then
+        Exit;
+    line := entry.text + ',' + entry.pinyin + ',' + IntToStr(entry.count);
+    Result := nc_parse_user_word_import(line, parsed, skipped) and (Length(parsed) = 1) and
+        (parsed[0].text = entry.text) and (parsed[0].pinyin = entry.pinyin) and
+        (parsed[0].count = entry.count);
+    if not Result then
+        line := '';
+end;
+
+function nc_write_user_word_export_file(const path: string; const entries: TncUserWordImportEntries;
+    out written: Integer): Boolean;
+const
+    bom: array[0..2] of Byte = ($EF, $BB, $BF);
+var
+    entry: TncUserWordImportEntry;
+    line: string;
+    temp_path: UTF8String;
+    id: TGUID;
+    fd, count: Integer;
+    stream: THandleStream;
+    procedure write_line(const value: string);
+    var bytes: UTF8String;
+    begin
+        bytes := UTF8Encode(value + #13#10);
+        stream.WriteBuffer(bytes[1], Length(bytes));
+    end;
+begin
+    written := 0;
+    Result := False;
+    if (path = '') or (CreateGUID(id) <> 0) then Exit;
+    temp_path := UTF8Encode(path + '.' + GUIDToString(id));
+    fd := fpOpen(temp_path, O_WRONLY or O_CREAT or O_EXCL, &600);
+    if fd < 0 then Exit;
+    count := 0;
+    try
+        stream := THandleStream.Create(fd);
+        try
+            stream.WriteBuffer(bom, SizeOf(bom));
+            write_line('# Cassotis IME user words, ' + FormatDateTime('yyyy-mm-dd hh:nn', Now) + ': text,pinyin,count');
+            for entry in entries do
+                if nc_format_user_word_line(entry, line) then
+                begin
+                    write_line(line);
+                    Inc(count);
+                end;
+        finally
+            stream.Free;
+        end;
+        Result := fpClose(fd) = 0;
+        fd := -1;
+        if not Result then Exit;
+        Result := fpRename(temp_path, UTF8Encode(path)) = 0;
+        if Result then written := count;
+    finally
+        if fd >= 0 then fpClose(fd);
+        if not Result then fpUnlink(temp_path);
     end;
 end;
 

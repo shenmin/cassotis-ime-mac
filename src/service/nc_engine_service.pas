@@ -49,6 +49,7 @@ type
             var config: TncEngineConfig);
         function PersistentStateChanged(const old_state: TncEngineState;
             const new_state: TncEngineState): Boolean;
+        procedure InvalidateLearnedCandidates;
         function SavePersistentState(const state: TncEngineState): Boolean;
         procedure SyncStateFromEngine;
         procedure SetEngineLeftContext(const context: TncEngineContext);
@@ -87,6 +88,8 @@ type
         function SetState(const incoming_state: TncEngineState): Boolean; override;
         function ClearUserDictionary: Boolean; override;
         function ImportUserWords(const path: string; out entries, imported: Integer): Boolean; override;
+        function ExportUserWords(const path: string; out count: Integer): Boolean; override;
+        function ForgetUserWords(const path: string; out count: Integer): Boolean; override;
         function ProcessKey(const context_id: QWord; const generation_id: QWord;
             const key_event: TncKeyEvent): TncEngineResult; override;
         function PollResult(const context_id: QWord;
@@ -111,7 +114,7 @@ type
 implementation
 
 uses
-    nc_custom_phrases,
+    nc_custom_phrases, nc_user_word_import,
     SysUtils,
     nc_config,
     nc_platform_compat,
@@ -196,7 +199,7 @@ begin
 
     provider := TncSqliteDictionary.Create(active_dictionary_path,
         user_dictionary_path);
-    if not provider.Open then
+    if not provider.open_for_input(FState.dictionary_variant) then
     begin
         provider.Free;
         if FDictionaryError = '' then
@@ -254,7 +257,8 @@ begin
     config.auto_english := state.auto_english;
     config.custom_phrases := Copy(state.custom_phrases);
     config.candidate_page_size := state.candidate_page_size;
-    config.candidate_expand_on_paging := state.candidate_expand_on_paging;
+    config.candidate_vertical := state.candidate_vertical;
+    config.candidate_expand_on_paging := state.candidate_expand_on_paging and not state.candidate_vertical;
     config.candidate_page_key_scheme :=
         state.candidate_page_key_scheme;
     config.one_key_completion_key := state.one_key_completion_key;
@@ -284,6 +288,7 @@ begin
         not nc_custom_phrases_equal(old_state.custom_phrases, new_state.custom_phrases) or
         (old_state.candidate_page_size <>
         new_state.candidate_page_size) or
+        (old_state.candidate_vertical <> new_state.candidate_vertical) or
         (old_state.candidate_expand_on_paging <>
         new_state.candidate_expand_on_paging) or
         (old_state.candidate_page_key_scheme <>
@@ -341,6 +346,7 @@ begin
     next_state.custom_phrases := Copy(engine_config.custom_phrases);
     next_state.candidate_page_size := engine_config.candidate_page_size;
     next_state.candidate_expand_on_paging := engine_config.candidate_expand_on_paging;
+    next_state.candidate_vertical := engine_config.candidate_vertical;
     next_state.candidate_page_key_scheme :=
         engine_config.candidate_page_key_scheme;
     next_state.one_key_completion_key :=
@@ -585,6 +591,7 @@ begin
     end;
     engine_result.query_text := FEngine.get_last_lookup_key;
     engine_result.selection_keys := FEngine.candidate_selection_keys;
+    engine_result.candidate_vertical := FConfig.candidate_vertical;
     engine_result.raw_input_candidate := FEngine.raw_input_candidate;
     engine_result.raw_input_selected := FEngine.raw_input_selected;
     engine_result.candidates := Copy(context.Candidates, 0,
@@ -797,6 +804,7 @@ var
     dictionary_changed: Boolean;
 begin
     state := incoming_state;
+    if state.candidate_vertical then state.candidate_expand_on_paging := False;
     if state.select_character_keys <>
         nc_normalize_select_character_keys(state.select_character_keys) then
         Exit(False);
@@ -866,6 +874,41 @@ begin
     Result := True;
 end;
 
+function TncEngineService.ExportUserWords(const path: string; out count: Integer): Boolean;
+begin
+    count := 0;
+    try
+        Result := (FEngine <> nil) and FEngine.export_user_words(path, count);
+    except
+        count := 0; Result := False;
+    end;
+end;
+
+function TncEngineService.ForgetUserWords(const path: string; out count: Integer): Boolean;
+var
+    content: string;
+    words: TncUserWordImportEntries;
+    skipped: Integer;
+begin
+    count := 0;
+    try
+        Result := (FEngine <> nil) and nc_read_user_word_import_file(path, content) and
+            nc_parse_user_word_import(content, words, skipped) and (skipped = 0) and
+            FEngine.forget_user_words(words, count);
+    except
+        count := 0; Result := False;
+    end;
+    if Result and (count > 0) then InvalidateLearnedCandidates;
+end;
+
+procedure TncEngineService.InvalidateLearnedCandidates;
+begin
+    FContexts.InvalidateLearnedCandidates;
+    FLoadedContextId := c_invalid_context_id;
+    FEngine.end_document;
+    FEngine.Reset;
+end;
+
 function TncEngineService.ImportUserWords(const path: string; out entries, imported: Integer): Boolean;
 begin
     entries := 0; imported := 0;
@@ -874,11 +917,7 @@ begin
     except
         entries := 0; imported := 0; Result := False;
     end;
-    if not Result or (imported = 0) then Exit;
-    FContexts.InvalidateLearnedCandidates;
-    FLoadedContextId := c_invalid_context_id;
-    FEngine.end_document;
-    FEngine.Reset;
+    if Result and (imported > 0) then InvalidateLearnedCandidates;
 end;
 
 function TncEngineService.ClearUserDictionary: Boolean;

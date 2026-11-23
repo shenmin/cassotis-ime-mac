@@ -5,6 +5,7 @@
 #import "ShortcutRecorder.h"
 #import "RuntimeLog.h"
 #import "CustomPhraseEditor.h"
+#import "LearnedWordsController.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 void CassotisShowAboutPanel(void) {
@@ -40,7 +41,7 @@ void CassotisShowAboutPanel(void) {
 @end
 
 // IMK has no Edit menu; retain normal editing shortcuts in settings fields.
-static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
+BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     NSTextView *editor=(NSTextView *)control.currentEditor;
     NSUInteger flags=event.modifierFlags&(NSEventModifierFlagCommand|NSEventModifierFlagControl|
         NSEventModifierFlagOption|NSEventModifierFlagShift);
@@ -79,11 +80,11 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
 @interface CassotisSettingsController () <NSTableViewDataSource,NSTableViewDelegate,NSWindowDelegate,NSComboBoxDelegate,NSComboBoxDataSource>
 @end
 @implementation CassotisSettingsController {
-    NSPopUpButton *_scheme, *_dictionary, *_pageKeys, *_completionKey, *_secondThirdKeys, *_selectCharacterKeys, *_pageSize, *_theme, *_punctuationPreset;
+    NSPopUpButton *_scheme, *_dictionary, *_pageKeys, *_completionKey, *_secondThirdKeys, *_selectCharacterKeys, *_pageSize, *_candidateLayout, *_theme, *_punctuationPreset;
     NSSlider *_fontSize;
     NSTextField *_fontSizeLabel, *_status, *_punctuationSymbols;
-    NSButton *_fullWidth, *_punctuation, *_decimalPeriod, *_fuzzy, *_retry, *_resetAppearance, *_logging, *_debugMode, *_expandCandidates, *_rememberMode, *_autoEnglish;
-    NSButton *_importWords, *_clearLearning, *_modeHint, *_candidateAtStart;
+    NSButton *_fullWidth, *_punctuation, *_decimalPeriod, *_fuzzy, *_retry, *_resetAppearance, *_logging, *_debugMode, *_rememberMode, *_autoEnglish;
+    NSButton *_importWords, *_exportWords, *_manageWords, *_clearLearning, *_modeHint, *_candidateAtStart;
     BOOL _importing;
     NSComboBox *_fontFamily;
     NSArray<NSString *> *_fontFamilies;
@@ -100,6 +101,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     NSUInteger _loadAttempts;
     cassotis::State _state;
     CassotisCustomPhraseEditor *_customPhrases;
+    CassotisLearnedWordsController *_learnedWords;
 }
 + (instancetype)shared { static CassotisSettingsController *v; static dispatch_once_t once; dispatch_once(&once,^{v=[[self alloc] init];}); return v; }
 - (NSPopUpButton *)popup:(NSArray<NSString *> *)titles identifier:(NSString *)identifier {
@@ -249,7 +251,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     _theme=[self popup:CassotisCandidateThemeNames() identifier:@"candidate-theme"];
     _theme.action=@selector(appearanceChanged:);
     _pageSize=[self popup:@[@"3 项",@"4 项",@"5 项",@"6 项",@"7 项",@"8 项",@"9 项"] identifier:@"candidate-page-size"];
-    _expandCandidates=[self check:@"翻页时展开为三行候选" identifier:@"candidate-expand-on-paging"];
+    _candidateLayout=[self popup:@[@"横排",@"横排，翻页时展开三行",@"竖排"] identifier:@"candidate-layout"];
     _modeHint=[self check:@"在光标旁提示中英文状态" identifier:@"input-mode-hint"];
     _modeHint.action=@selector(modeHintChanged:);
     _candidateAtStart=[self check:@"候选窗固定在输入起点" identifier:@"candidate-at-input-start"];
@@ -272,7 +274,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     NSButton *resetAppearance=[NSButton buttonWithTitle:@"恢复默认外观" target:self action:@selector(resetAppearance:)];
     _resetAppearance=resetAppearance;
     [self section:@"外观" views:@[[self card:@[[self row:@"候选字体" control:_fontFamily],[self row:@"大小" control:sizeControls],
-        [self row:@"配色" control:_theme],[self row:@"每页候选" control:_pageSize],_expandCandidates,_candidateAtStart,_modeHint,
+        [self row:@"配色" control:_theme],[self row:@"每页候选" control:_pageSize],[self row:@"候选排列" control:_candidateLayout],_candidateAtStart,_modeHint,
         [self hint:@"切换到言泉或切换中英文时显示当前状态；英文模式下进入输入框也会提示。"]]],
         [self hint:@"预览"],_preview,[self row:@"" control:resetAppearance]]];
 
@@ -350,9 +352,15 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     _clearLearning.accessibilityIdentifier=@"clear-learning";
     _importWords=[NSButton buttonWithTitle:@"导入输入频次…" target:self action:@selector(importWords:)];
     _importWords.accessibilityIdentifier=@"import-word-frequencies";
+    _learnedWords=[[CassotisLearnedWordsController alloc] init];
+    _exportWords=[NSButton buttonWithTitle:@"导出词频…" target:self action:@selector(exportWords:)];
+    _exportWords.accessibilityIdentifier=@"export-word-frequencies";
+    _manageWords=[NSButton buttonWithTitle:@"管理已学词语…" target:self action:@selector(manageWords:)];
+    _manageWords.accessibilityIdentifier=@"manage-learned-words";
     [self section:@"高级" views:@[[self card:@[[self row:@"导入选词习惯" control:_importWords],
-        [self row:@"用户词语与学习" control:_clearLearning]]],
-        [self hint:@"所有词库学习和模型推理均在本机进行。可以导入其他输入法导出的词语和使用次数。清除学习记录会同时删除导入的频次，不会更改设置、自定义短语或基础词库。"],
+        [self row:@"备份词语与使用次数" control:_exportWords],
+        [self row:@"搜索与删除" control:_manageWords],[self row:@"用户词语与学习" control:_clearLearning]]],
+        [self hint:@"所有词库学习和模型推理均在本机进行。导出的词频可在其他设备导入。管理已学词语可以单独删除某个读音的学习记录。"],
         [self card:@[_debugMode,[self hint:@"在候选栏右下角显示参与排序的上文及其来源。默认关闭，用于排查选词问题；此开关不启用日志。"],_logging,
         [self hint:@"默认关闭。开启后记录启动和运行诊断，开关立即生效并自动保存，不中断输入。关闭后停止写入，已有日志保留。每份日志最多 2 MB，保留上一份记录。"],
         [self row:@"运行日志" control:logs]]],
@@ -553,7 +561,8 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     const char *samples[]={"落霞","落下","落","洛","罗","络","骆","珞","螺"};
     NSInteger count=MIN(9,MAX(3,_pageSize.indexOfSelectedItem+3));
     for(NSInteger i=0;i<count;++i) result.candidates.push_back({samples[i],"",0,0,false});
-    if(_expandCandidates.state) {
+    result.vertical=_candidateLayout.indexOfSelectedItem==2;
+    if(_candidateLayout.indexOfSelectedItem==1) {
         result.pages=3; result.page=1;
         const char *extra[][9]={{"罗夏","洛下","落花","落雪","落日","落叶","落笔","落定","落幕"},
                               {"落座","落地","落款","落脚","落成","落户","落实","落伍","落单"}};
@@ -578,7 +587,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     (void)sender; _fontSize.doubleValue=1; _fontFamily.stringValue=@"PingFang SC";
     _modeHint.state=NSControlStateValueOn; CassotisSetInputModeHintEnabled(YES);
     _candidateAtStart.state=NSControlStateValueOn; CassotisSetCandidateAtInputStartEnabled(YES);
-    [_theme selectItemAtIndex:0]; [_pageSize selectItemAtIndex:6]; _expandCandidates.state=0; [self appearanceChanged:nil];
+    [_theme selectItemAtIndex:0]; [_pageSize selectItemAtIndex:6]; [_candidateLayout selectItemAtIndex:0]; [self appearanceChanged:nil];
 }
 - (void)reloadSettings {
     _loading=YES; _ready=NO; CassotisStartEngine(); cassotis::EngineClient engine;
@@ -596,7 +605,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
         [_secondThirdKeys selectItemAtIndex:_state.secondThirdKeys];
         [_selectCharacterKeys selectItemAtIndex:_state.selectCharacterKeys];
         [_pageSize selectItemAtIndex:_state.pageSize-3]; _fullWidth.state=(_state.flags&1)?1:0;
-        _expandCandidates.state=(_state.flags&16)?1:0;
+        [_candidateLayout selectItemAtIndex:(_state.flags&64)?2:((_state.flags&16)?1:0)];
         _debugMode.state=(_state.flags&8)?1:0;
         _punctuation.state=(_state.flags&2)?1:0; _decimalPeriod.state=(_state.flags&32)?1:0; _fuzzy.state=(_state.flags&4)?1:0;
         for(NSUInteger i=0;i<_rules.count;++i) { _rules[i].state=(_state.fuzzy&(1<<i))?1:0; _rules[i].enabled=_fuzzy.state!=0; }
@@ -618,7 +627,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     _fontSize.doubleValue=best; _loading=NO;
     // Do not present placeholder engine state as editable user preferences.
     for(NSControl *control in @[_scheme,_dictionary,_pageKeys,_completionKey,_secondThirdKeys,_selectCharacterKeys,_pageSize,_theme,_fontSize,
-        _fontFamily,_fullWidth,_punctuation,_fuzzy,_resetAppearance,_expandCandidates,_autoEnglish,_debugMode]) control.enabled=_ready;
+        _fontFamily,_fullWidth,_punctuation,_fuzzy,_resetAppearance,_candidateLayout,_autoEnglish,_debugMode]) control.enabled=_ready;
     _decimalPeriod.enabled=_ready && _punctuation.state!=0;
     [self updateCharacterKeyControls];
     [self updatePunctuationControls];
@@ -627,7 +636,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     for(NSUInteger i=0;i<_shortcuts.count;++i) _shortcuts[i].enabled=_ready && _shortcutEnabled[i].state!=0;
     _customPhrases.enabled=_ready;
     _importWords.enabled=_ready && !_importing;
-    _clearLearning.enabled=_ready && !_importing;
+    _clearLearning.enabled=_exportWords.enabled=_manageWords.enabled=_ready && !_importing;
     _retry.hidden=_ready; _retry.enabled=!_ready;
     [self.window.contentView layoutSubtreeIfNeeded];
     [self windowDidResize:[NSNotification notificationWithName:NSWindowDidResizeNotification object:self.window]];
@@ -659,7 +668,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     state.secondThirdKeys=(uint8_t)_secondThirdKeys.indexOfSelectedItem;
     state.selectCharacterKeys=state.pageKeys==1?0:(uint8_t)_selectCharacterKeys.indexOfSelectedItem;
     state.pageSize=(uint8_t)(_pageSize.indexOfSelectedItem+3);
-    state.flags=(_fullWidth.state?1:0)|(_punctuation.state?2:0)|(_fuzzy.state?4:0)|(_debugMode.state?8:0)|(_expandCandidates.state?16:0)|(_decimalPeriod.state?32:0); state.fuzzy=0;
+    state.flags=(_fullWidth.state?1:0)|(_punctuation.state?2:0)|(_fuzzy.state?4:0)|(_debugMode.state?8:0)|(_candidateLayout.indexOfSelectedItem==1?16:0)|(_candidateLayout.indexOfSelectedItem==2?64:0)|(_decimalPeriod.state?32:0); state.fuzzy=0;
     for(NSUInteger i=0;i<_rules.count;++i) if(_rules[i].state) state.fuzzy|=1<<i;
     for(int i=0;i<5;++i) {
         if(_shortcuts[i].recording) { _status.stringValue=@"请先完成快捷键录制，或按 Esc 取消。"; return NO; }
@@ -707,7 +716,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
 - (void)openConfig:(id)sender { (void)sender; [self openDirectory:@"Library/Application Support/CassotisIME"]; }
 - (void)startWordImport:(NSURL *)url {
     if(_importing || !_ready || !url.isFileURL) return;
-    _importing=YES; _importWords.enabled=NO; _clearLearning.enabled=NO;
+    _importing=YES; _importWords.enabled=NO; _clearLearning.enabled=_exportWords.enabled=_manageWords.enabled=NO;
     _status.stringValue=@"正在导入输入频次…";
     // A bulk import may take several seconds. Keep the settings window and
     // its confirmation responsive without extending normal key deadlines.
@@ -726,10 +735,17 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
         }
         if(accessed) [url stopAccessingSecurityScopedResource];
         dispatch_async(dispatch_get_main_queue(),^{
-            self->_importing=NO; self->_importWords.enabled=self->_ready; self->_clearLearning.enabled=self->_ready;
+            self->_importing=NO; self->_importWords.enabled=self->_ready; self->_clearLearning.enabled=self->_exportWords.enabled=self->_manageWords.enabled=self->_ready;
             self->_status.stringValue=message;
         });
     });
+}
+- (void)exportWords:(id)sender {
+    if(!_ready || _importing) return;
+    [_learnedWords exportForWindow:self.window completion:^(NSString *message) { self->_status.stringValue=message; }];
+}
+- (void)manageWords:(id)sender {
+    if(_ready && !_importing) [_learnedWords showForWindow:self.window];
 }
 - (void)importWords:(id)sender {
     (void)sender; if(_importing || !_ready) return;
@@ -740,7 +756,7 @@ static BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
         @"知识,zhishi,120\n哪些,naxie,86\n输入法,shurufa\n\n"
         @"支持 UTF-8、带编码标记的 UTF-16 和 GBK 编码，最多 32 MB。\n\n"
         @"批量导入可能让人名、昵称、打错的词或已不用的旧词排到同音常用词前面。请先检查文件内容。\n\n"
-        @"导入不能单独撤销。“清除学习记录”会将导入的频次和平时打字积累的学习记录一起删除。";
+        @"可以在“管理已学词语”中删除个别词语的记录。“清除学习记录”会一并删除所有导入和平时积累的学习记录。";
     [alert addButtonWithTitle:@"取消"]; [alert addButtonWithTitle:@"继续选择文件…"];
     [alert beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse response) {
         if(response!=NSAlertSecondButtonReturn) return;

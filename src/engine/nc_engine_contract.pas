@@ -27,6 +27,8 @@ type
             virtual; abstract;
         function ClearUserDictionary: Boolean; virtual; abstract;
         function ImportUserWords(const path: string; out entries, imported: Integer): Boolean; virtual;
+        function ExportUserWords(const path: string; out count: Integer): Boolean; virtual;
+        function ForgetUserWords(const path: string; out count: Integer): Boolean; virtual;
         function ProcessKey(const context_id: QWord; const generation_id: QWord;
             const key_event: TncKeyEvent): TncEngineResult; virtual; abstract;
         function PollResult(const context_id: QWord;
@@ -41,6 +43,16 @@ type
     end;
 
 implementation
+
+function TncEngineCore.ExportUserWords(const path: string; out count: Integer): Boolean;
+begin
+    count := 0; Result := False;
+end;
+
+function TncEngineCore.ForgetUserWords(const path: string; out count: Integer): Boolean;
+begin
+    count := 0; Result := False;
+end;
 
 function TncEngineCore.ImportUserWords(const path: string; out entries, imported: Integer): Boolean;
 begin

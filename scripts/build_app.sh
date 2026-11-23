@@ -21,7 +21,7 @@ xcrun clang++ -arch "$arch" -mmacosx-version-min=14.0 -std=c++20 -O2 -g \
     -fobjc-arc -Wall -Wextra -Werror -Wno-deprecated-declarations \
     -framework AppKit -framework InputMethodKit -framework Carbon -framework UniformTypeIdentifiers -framework QuartzCore \
     "$root/src/macos/EngineClient.cpp" "$root/src/macos/CandidatePanel.mm" \
-    "$root/src/macos/InputSession.mm" "$root/src/macos/SettingsController.mm" "$root/src/macos/CustomPhraseEditor.mm" \
+    "$root/src/macos/InputSession.mm" "$root/src/macos/SettingsController.mm" "$root/src/macos/CustomPhraseEditor.mm" "$root/src/macos/LearnedWordsController.mm" \
     "$root/src/macos/CandidateAppearance.mm" "$root/src/macos/ShortcutRecorder.mm" \
     "$root/src/macos/InputModePanel.mm" "$root/src/macos/RuntimeLog.mm" \
     "$root/src/macos/main.mm" -o "$app/Contents/MacOS/Cassotis"

@@ -426,7 +426,7 @@ const
         '''setting.fuzzy_pinyin_enabled'', ' +
         '''setting.fuzzy_pinyin_rules'', ' +
         '''setting.candidate_page_size'', ' +
-        '''setting.candidate_expand_on_paging'', ' +
+        '''setting.candidate_vertical'', ''setting.candidate_expand_on_paging'', ' +
         '''setting.candidate_page_key_scheme'', ' +
         '''setting.one_key_completion_key'', ' +
         '''setting.second_third_candidate_keys'', ' +
@@ -516,6 +516,8 @@ begin
                 state.auto_english := setting_value <> 0
             else if key_name = 'setting.decimal_period_after_digit' then
                 state.decimal_period_after_digit := setting_value <> 0
+            else if key_name = 'setting.candidate_vertical' then
+                state.candidate_vertical := setting_value <> 0
             else if key_name = 'setting.candidate_expand_on_paging' then
                 state.candidate_expand_on_paging := setting_value <> 0
             else if (key_name = 'setting.candidate_page_size') and
@@ -583,6 +585,7 @@ begin
                 SetShortcutModifierMask(state.shortcuts.open_settings,
                     setting_value);
         end;
+        if state.candidate_vertical then state.candidate_expand_on_paging := False;
         state.candidate_page_key_scheme :=
             nc_resolve_candidate_page_key_scheme(
             state.candidate_page_key_scheme, state.one_key_completion_key);
@@ -642,8 +645,10 @@ begin
         'setting.candidate_page_size', UTF8Decode(IntToStr(
         state.candidate_page_size))) and
         ExecutePairStatement(c_upsert_setting,
+        'setting.candidate_vertical', UTF8Decode(IntToStr(Ord(state.candidate_vertical)))) and
+        ExecutePairStatement(c_upsert_setting,
         'setting.candidate_expand_on_paging', UTF8Decode(IntToStr(
-        Ord(state.candidate_expand_on_paging)))) and
+        Ord(state.candidate_expand_on_paging and not state.candidate_vertical)))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.candidate_page_key_scheme', UTF8Decode(IntToStr(
         Ord(state.candidate_page_key_scheme)))) and

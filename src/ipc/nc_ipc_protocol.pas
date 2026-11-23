@@ -40,7 +40,9 @@ type
         imt_poll_result,
         imt_remove_candidate,
         imt_candidate_action,
-        imt_import_user_words
+        imt_import_user_words,
+        imt_export_user_words,
+        imt_forget_user_words
     );
 
     TncIpcEnvelope = record
