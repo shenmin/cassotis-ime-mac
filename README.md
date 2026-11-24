@@ -149,7 +149,7 @@ In Traditional Chinese mode, candidates and context are mapped to simplified cha
 ### Local runtime behavior
 - Inference runs exclusively on the local CPU via bundled ONNX Runtime, with zero network or GPU usage.
 - The model loads asynchronously in the background inside `cassotis-engine`; standard dictionary lookup, selection, commitment, and lexical completion never block on model initialization.
-- Neural calls enforce a 100 ms deadline (80 ms for long-sentence Tab continuation); timed-out calls are discarded without disturbing existing candidates.
+- Each neural call has a 100 ms deadline. Long-sentence Tab predictions have up to 120 ms to arrive while the current candidates stay visible.
 - Inference worker count scales with the fastest CPU core tier (clamped between 4 and 8 threads), falling back to physical or logical CPU counts if core-tier metadata is unavailable.
 - Context reads at most 1,024 UTF-16 code units preceding the caret and never inspects secure text fields.
 
@@ -164,7 +164,7 @@ The tables compare macOS v2.9.0 against the preceding release, v2.8.0, while ret
 
 | Version | Top1 | Top2 | Mean (ms) | P50 (ms) | P95 (ms) | Max (ms) |
 |---|---:|---:|---:|---:|---:|---:|
-| `v2.9.0` | 13868/16300 (85.08%) | 14789/16300 (90.73%) | 87.600 | 80 | 158 | 516 |
+| `v2.9.0` | 13869/16300 (85.09%) | 14789/16300 (90.73%) | 99.312 | 92 | 177 | 723 |
 | `v2.8.0` | 13747/16300 (84.34%) | 14690/16300 (90.12%) | 88.809 | 82 | 159 | 533 |
 | `v2.7.0` | 13738/16300 (84.28%) | 14681/16300 (90.07%) | 85.862 | 79 | 155 | 508 |
 | `v2.6.0` | 13743/16300 (84.31%) | 14689/16300 (90.12%) | 82.148 | 77 | 143 | 499 |
@@ -179,7 +179,7 @@ Accuracy is measured in deterministic mode without inference timeouts; latency i
 
 | Version | Top1 | Top2 | Contested Top1 | Contested Top2 | Mean (ms) | P50 (ms) | P95 (ms) | Max (ms) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `v2.9.0` | 63502/65000 (97.70%) | 64563/65000 (99.33%) | 10536/11685 (90.17%) | 11313/11685 (96.82%) | 7.241 | 5 | 19 | 74 |
+| `v2.9.0` | 63500/65000 (97.69%) | 64562/65000 (99.33%) | 10534/11685 (90.15%) | 11312/11685 (96.81%) | 7.633 | 6 | 20 | 221 |
 | `v2.8.0` | 63502/65000 (97.70%) | 64565/65000 (99.33%) | 10546/11685 (90.25%) | 11315/11685 (96.83%) | 7.459 | 5 | 20 | 69 |
 | `v2.7.0` | 63502/65000 (97.70%) | 64564/65000 (99.33%) | 10545/11685 (90.24%) | 11315/11685 (96.83%) | 7.404 | 5 | 20 | 53 |
 | `v2.6.0` | 63455/65000 (97.62%) | 64521/65000 (99.26%) | 10516/11685 (90.00%) | 11283/11685 (96.56%) | 6.744 | 5 | 18 | 99 |
@@ -194,7 +194,7 @@ Results above include preceding context. `Contested` denotes queries that map to
 
 | Version | Completion Hit | Avg Keys Saved | Stability | Keystroke P95 (ms) | Final P95 (ms) |
 | --- | --- | --- | --- | --- | --- |
-| `v2.9.0` | 10562/12831 (82.32%) | 2.642 | 2177/2233 (97.49%) | 2.084 | 17.617 |
+| `v2.9.0` | 10561/12831 (82.31%) | 2.642 | 2178/2234 (97.49%) | 2.108 | 19.133 |
 | `v2.8.0` | 10506/12831 (81.88%) | 2.634 | 2139/2200 (97.23%) | 2.107 | 17.968 |
 | `v2.7.0` | 10506/12831 (81.88%) | 2.634 | 2139/2200 (97.23%) | 2.054 | 17.527 |
 | `v2.6.0` | 10513/12831 (81.93%) | 2.635 | 2153/2216 (97.16%) | 2.000 | 16.493 |
@@ -209,7 +209,7 @@ The 65,000 short-word cases yield 12,831 completion opportunities. Average keys 
 
 | Version | Local Completion Hit | Predictive Prompt Coverage | Total Keys Saved | P95 (ms) |
 | --- | --- | --- | --- | --- |
-| `v2.9.0` | 4006/16300 (24.58%) | 16215/16300 (99.48%) | 9816 | 138 |
+| `v2.9.0` | 4012/16300 (24.61%) | 16212/16300 (99.46%) | 9836 | 175 |
 | `v2.8.0` | 3976/16300 (24.39%) | 16230/16300 (99.57%) | 9816 | 150 |
 | `v2.7.0` | 3982/16300 (24.43%) | 16234/16300 (99.60%) | 9827 | 143 |
 | `v2.6.0` | 3955/16300 (24.26%) | 16152/16300 (99.09%) | 9724 | 137 |
@@ -218,7 +218,7 @@ The 65,000 short-word cases yield 12,831 completion opportunities. Average keys 
 | `v2.0.0` | 3771/16300 (23.13%)<br>*3768/16300 (23.12%)* | 16111/16300 (98.84%)<br>*16113/16300 (98.85%)* | 9303<br>*9293* | 143<br>*149* |
 | `v1.0.0` | 3539/16300 (21.71%) | 15812/16300 (97.01%) | 7539 | 131 |
 
-Each case omits the final four complete syllables of a sentence and evaluates the single continuation shown; any continuation that accurately extends the typed prefix counts as a hit without requiring full-sentence completion. All releases enforce an 80 ms deadline. For v2.9.0, the deadline-free control run records 4,006 hits and 9,816 net saved keys; the production run records 4,006 hits and 9,816 net saved keys. 他 and 她 are treated as equivalent at the same position. `Predictive Prompt Coverage` measures how often a predictive continuation is offered (excluding plain joins of already-typed Pinyin) rather than hit precision.
+Each case omits the final four complete syllables of a sentence and evaluates the single continuation shown; any continuation that accurately extends the typed prefix counts as a hit without requiring full-sentence completion. The result deadline is 120 ms in v2.9.0. It was 80 ms from v1.0.0 through v2.8.0 and 50 ms in v0.2.0. For v2.9.0, the deadline-free control run records 4,012 hits and 9,836 net saved keys; the production run records 4,012 hits and 9,836 net saved keys. 他 and 她 are treated as equivalent at the same position. `Predictive Prompt Coverage` measures how often a predictive continuation is offered (excluding plain joins of already-typed Pinyin) rather than hit precision.
 
 ## Configuration
 Open **Settings…** from the menu bar input menu, or press Ctrl+Shift+F10. Confirmed changes are saved and applied immediately.

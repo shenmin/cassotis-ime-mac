@@ -1023,6 +1023,9 @@ extern "C" CASSOTIS_EXPORT void* nc_lm_create(
         UseReleasableInitializers(options);
         options.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
         nc_trie_attention::Register(options);
+#if defined(__aarch64__)
+        nc_char_lm_float_ops::Register(options);
+#endif
         const std::string path = std::string(directory) + "/char_lm.onnx";
         const std::string key = CharLmSessionKey(path);
         h->session = CharLmSessions()[key].lock();

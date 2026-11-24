@@ -9,7 +9,7 @@ unit nc_local_completion_host;
 interface
 uses SysUtils, Classes, SyncObjs, nc_platform_compat, nc_engine_intf, nc_char_lm, nc_types;
 
-const c_nc_local_completion_result_timeout_ms = 80;
+const c_nc_local_completion_result_timeout_ms = 120;
 type
     TncLocalCompletionHost = class;
     TncLocalCompletionTask = record

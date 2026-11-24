@@ -7,6 +7,7 @@
 - Export multi-character learned words and their counts to CSV. Search by text or Pinyin prefix and forget selected readings. Imported counts preserve ordinary learning without triggering recent-choice priority.
 - Update the existing local character model with sentence-level distillation from Qwen3.5-9B-Base. Retrain seven boosted-tree models, including a new gate for long-sentence repairs, and protect frequent conversational readings.
 - Update to Cassotis Lexicon v2.9.0, with 269,924 simplified and 272,681 traditional readings.
+- Match x64 rounding in two Apple silicon character-model operations. Long-sentence Tab predictions have up to 120 ms to arrive while existing candidates stay visible.
 
 ## 2.8.0 (build 9, 2026-11-19)
 

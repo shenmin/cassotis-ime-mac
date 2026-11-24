@@ -101,4 +101,5 @@ std::string ErrorText(const char* message) {
 }  // namespace
 
 #include "nc_trie_attention.inc"
+#include "nc_char_lm_float_ops.inc"
 #include "nc_char_lm_ort.inc"
