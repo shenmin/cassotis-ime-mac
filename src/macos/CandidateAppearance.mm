@@ -315,7 +315,9 @@ NSView *CassotisCandidateView(const cassotis::Result &r, CGFloat size, NSString 
             [NSString stringWithFormat:@"%c  ",r.selectionKeys[i]]:@"";
         NSColor *color=c.source==1?(selected?colors.selectedUser:colors.user):
             c.kind==1?(selected?colors.selectedCompound:colors.compound):(selected?colors.selectedText:colors.text);
-        CassotisCandidateButton *button=candidateButton(prefix,str(c.text),displayComment(c.comment),
+        NSString *suffix=c.source==3?str(c.comment):displayComment(c.comment);
+        if(row.page==0 && i==0 && !r.firstCandidateWubiCode.empty()) suffix=str(r.firstCandidateWubiCode);
+        CassotisCandidateButton *button=candidateButton(prefix,str(c.text),suffix,
             font,color,selected?colors.selectedWeight:colors.weight,selected,colors,!active);
         button.tag=tag; button.target=target; button.action=selection;
         button.accessibilityLabel=[NSString stringWithFormat:@"候选 %ld，%@",(long)i+1,str(c.text)];

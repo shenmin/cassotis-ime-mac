@@ -308,7 +308,7 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     cassotis::Result _result;
     CassotisCandidatePanel *_panel;
     CassotisInputModePanel *_modePanel;
-    BOOL _modeKnown, _modeFeedbackPending;
+    BOOL _modeKnown, _modeFeedbackPending, _wubiMixed;
     uint8_t _inputMode;
     NSTimeInterval _modeFeedbackDeadline, _modeFeedbackNotBefore;
     ModeHintReason _modeHintReason;
@@ -376,7 +376,7 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     }
     if(now<_modeFeedbackNotBefore) return;
     id client=self.client;
-    BOOL shown=[_modePanel showMode:_inputMode client:client
+    BOOL shown=[_modePanel showMode:(_inputMode==0 && _wubiMixed?2:_inputMode) client:client
         hold:_modeHintReason==ModeHintReason::Toggle?0.8:1.3];
     if(!shown) return;
     if(!_modeFeedbackPending || !_active || self.client!=client || !_result.preedit.empty()) {
@@ -420,7 +420,7 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     uint8_t remembered=0;
     if(!CassotisRememberedInputMode([self applicationIdentifier],&remembered)) return;
     try {
-        auto state=_engine->state(false);
+        auto state=_engine->state(false); _wubiMixed=state.wubiMixed;
         if(state.mode==remembered) return;
         state.mode=remembered;
         _engine->setState(state);
@@ -433,7 +433,7 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     try {
         _engine->active(true);
         auto state=_engine->state(false); _panel.completionKey=state.completionKey;
-        _inputMode=state.mode; _modeKnown=YES;
+        _inputMode=state.mode; _wubiMixed=state.wubiMixed; _modeKnown=YES;
         _modeFeedbackDeadline=NSProcessInfo.processInfo.systemUptime+0.4;
         return YES;
     }
@@ -741,7 +741,7 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     // application left behind.
     [self restoreRememberedInputModeIfPending];
     try {
-        auto state=_engine->state(false);
+        auto state=_engine->state(false); _wubiMixed=state.wubiMixed;
         const auto &modeShortcut=state.shortcuts[0];
         const bool capsModeKey=!modeShortcut.disabled && modeShortcut.key==20 && !modeShortcut.modifiers;
         if(key.special==48 && (!capsModeKey || (key.modifiers&15) ||
@@ -868,7 +868,7 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
     if(index!=-1) { [self candidateAction:index remove:NO]; return; }
     if(!_active || _result.preedit.empty() || !_engine->connected()) return;
     try {
-        cassotis::Key k; auto state=_engine->state(false);
+        cassotis::Key k; auto state=_engine->state(false); _wubiMixed=state.wubiMixed;
         if(state.completionKey==0) k.special=6; else k.text="`";
         [self apply:_engine->key(k)];
     } catch(...) { [self recover]; }
@@ -882,11 +882,12 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
         cassotis::EngineClient control;
         if(!control.connect(utf8(CassotisSocketPath()))) { CassotisStartEngine(); return; }
         auto s=control.state(false);
-        switch(action) { case 0:s.mode^=1;break;case 1:s.dictionary^=1;break;
+        switch(action) { case 0:s.mode^=1;break;case 1:if(s.wubiMixed) return; s.dictionary^=1;break;
             case 2:s.flags^=1;break;case 3:s.flags^=2;break;case 4:s.flags^=4;break;default:return; }
         control.setState(s);
         if(action==0) {
-            if(activeSession) [activeSession showInputMode:s.mode];
+            CassotisInputSession *session=activeSession;
+            if(session) { session->_wubiMixed=s.wubiMixed; [session showInputMode:s.mode]; }
             else CassotisRememberInputModeForFrontmostApplication(s.mode);
         }
     } catch(...) { [self recover]; }
@@ -901,13 +902,13 @@ BOOL CassotisModifierTapInterrupted(const CassotisModifierTap &tap, const Cassot
         }
         auto state=control.state(false);
         NSArray *titles=@[state.mode==0?@"切换到英文":@"切换到中文",
-            state.dictionary==0?@"切换到繁體中文":@"切换到简体中文",
+            state.wubiMixed?@"五笔混输使用简体中文":(state.dictionary==0?@"切换到繁體中文":@"切换到简体中文"),
             (state.flags&1)?@"切换到半角":@"切换到全角",
             (state.flags&2)?@"切换到英文标点":@"切换到中文标点",
             (state.flags&4)?@"关闭模糊拼音":@"开启模糊拼音"];
         for(NSUInteger i=0;i<titles.count;++i) {
             NSMenuItem *item=[[NSMenuItem alloc] initWithTitle:titles[i] action:action keyEquivalent:@""];
-            item.target=target; item.tag=i; [menu addItem:item];
+            item.target=target; item.tag=i; item.enabled=i!=1 || !state.wubiMixed; [menu addItem:item];
         }
     } catch(...) {
         NSMenuItem *item=[[NSMenuItem alloc] initWithTitle:@"正在连接输入引擎…" action:nil keyEquivalent:@""];

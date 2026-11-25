@@ -273,7 +273,7 @@ begin
                 end;
                 // Partial and older clients must preserve fields they cannot
                 // express, including phrases and candidate-selection keys.
-                if (request.payload[0] < 15) and (request.payload[1] = 0) then
+                if (request.payload[0] < c_ipc_engine_state_schema_version) and (request.payload[1] = 0) then
                 begin
                     if not FEngine.GetState(previous_state) then
                     begin
@@ -283,6 +283,17 @@ begin
                     end;
                     if (request.payload[0] < 9) or not Odd(request.payload[0]) then
                         engine_state.custom_phrases := previous_state.custom_phrases;
+                    if request.payload[0] < 16 then
+                    begin
+                        engine_state.wubi_mixed := previous_state.wubi_mixed;
+                        engine_state.wubi_context_order := previous_state.wubi_context_order;
+                        if previous_state.candidate_page_key_scheme > cpks_shift_tab then
+                            engine_state.candidate_page_key_scheme := previous_state.candidate_page_key_scheme;
+                        if previous_state.second_third_candidate_keys > stck_semicolon_quote then
+                            engine_state.second_third_candidate_keys := previous_state.second_third_candidate_keys;
+                        if previous_state.select_character_keys > sck_brackets then
+                            engine_state.select_character_keys := previous_state.select_character_keys;
+                    end;
                     if request.payload[0] < 14 then
                     begin
                         engine_state.candidate_vertical := previous_state.candidate_vertical and not engine_state.candidate_expand_on_paging;

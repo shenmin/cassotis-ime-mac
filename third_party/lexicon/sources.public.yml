@@ -539,3 +539,13 @@ sources:
     attribution_required: true
     raw_committed: false
     notes: 'Conversation word frequencies and language-model training. No utterances are redistributed. See LCCC-LICENSE.txt.'
+  - id: wubi-haifeng-86
+    name: SUN Haifeng Wubi 86 tables (ibus-table-chinese)
+    download_url: https://raw.githubusercontent.com/mike-fabian/ibus-table-chinese/e0dd8bfdff9e0d2194c8e57f1ded606fb53e29c1/tables/wubi-haifeng/
+    homepage: https://github.com/mike-fabian/ibus-table-chinese
+    license: BSD-3-Clause
+    risk_level: low
+    redistribution_class: attribution_required
+    attribution_required: true
+    raw_committed: false
+    notes: 'Wubi 86 character and word codes for the code table of the IME Wubi/pinyin mixed scheme (data/generated/wubi86_table.txt); kept apart from the pinyin dictionaries.'

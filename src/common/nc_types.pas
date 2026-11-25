@@ -58,7 +58,9 @@ type
     );
     TncFuzzyPinyinRules = set of TncFuzzyPinyinRule;
 
-    TncCandidateSource = (cs_rule, cs_user, cs_quick_input);
+    // cs_wubi: an entry of the Wubi 86 code table (the Wubi/pinyin mixed
+    // scheme); it commits as typed and teaches nothing.
+    TncCandidateSource = (cs_rule, cs_user, cs_quick_input, cs_wubi);
     TncCandidateDisplayKind = (cdk_default, cdk_lm_compound, cdk_sentence_prefix);
     TncInputMode = (im_chinese, im_english);
     TncDictionaryVariant = (dv_simplified, dv_traditional);
@@ -76,11 +78,16 @@ type
         cpks_minus_plus,
         cpks_brackets,
         cpks_comma_period,
-        cpks_shift_tab
+        cpks_shift_tab,
+        cpks_semicolon_quote
     );
     TncOneKeyCompletionKey = (ock_tab, ock_backtick);
-    TncSecondThirdCandidateKeys = (stck_none, stck_semicolon_quote);
-    TncSelectCharacterKeys = (sck_none, sck_brackets);
+    TncSecondThirdCandidateKeys = (stck_none, stck_semicolon_quote,
+        stck_minus_plus, stck_brackets, stck_comma_period);
+    TncSelectCharacterKeys = (sck_none, sck_brackets, sck_minus_plus,
+        sck_comma_period, sck_semicolon_quote);
+    TncCandidateKeyPair = (ckp_none, ckp_minus_plus, ckp_brackets,
+        ckp_comma_period, ckp_semicolon_quote);
     TncShortcutAction = (
         sa_input_mode_toggle,
         sa_punctuation_toggle,
@@ -133,6 +140,8 @@ type
         select_character_keys: TncSelectCharacterKeys;
         debug_mode: Boolean;
         shortcuts: TncShortcutConfig;
+        wubi_mixed: Boolean;
+        wubi_context_order: Boolean;
     end;
 
     TncEngineConfig = record
@@ -165,6 +174,8 @@ type
         debug_mode: Boolean;
         dictionary_variant: TncDictionaryVariant;
         shortcuts: TncShortcutConfig;
+        wubi_mixed: Boolean;
+        wubi_context_order: Boolean;
     end;
 
     TncCandidate = record
@@ -206,7 +217,10 @@ type
         okcs_long_neural,
         okcs_document_copy,
         okcs_exact_tail_fallback,
-        okcs_custom_phrase
+        okcs_custom_phrase,
+        // A word of the Wubi table whose code goes on from the keys typed
+        // (the Wubi/pinyin mixed scheme). Appended last.
+        okcs_wubi
     );
 
     TncOneKeyCompletion = record
@@ -382,6 +396,7 @@ type
         page_count: Integer;
         candidate_pages: TncCandidatePages;
         candidate_revision: QWord;
+        first_candidate_wubi_code: string;
         selection_keys: string;
         raw_input_candidate: string;
         raw_input_selected: Boolean;
@@ -516,6 +531,7 @@ begin
     value.input_mode := im_chinese;
     value.dictionary_variant := dv_simplified;
     value.pinyin_scheme := pis_full_pinyin;
+    value.wubi_context_order := True;
     value.fuzzy_pinyin_enabled := False;
     value.fuzzy_pinyin_rules := [];
     value.full_width_mode := False;
@@ -598,6 +614,8 @@ begin
     Result := (left_value.input_mode = right_value.input_mode) and
         (left_value.dictionary_variant = right_value.dictionary_variant) and
         (left_value.pinyin_scheme = right_value.pinyin_scheme) and
+        (left_value.wubi_mixed = right_value.wubi_mixed) and
+        (left_value.wubi_context_order = right_value.wubi_context_order) and
         (left_value.fuzzy_pinyin_enabled =
         right_value.fuzzy_pinyin_enabled) and
         (left_value.fuzzy_pinyin_rules = right_value.fuzzy_pinyin_rules) and

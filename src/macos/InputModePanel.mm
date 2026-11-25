@@ -193,7 +193,7 @@ static NSArray<NSValue *> *caretAccessories(NSRect caret,pid_t clientPID) {
     [self dismiss];
     NSUInteger revision=_revision;
     NSRect caret;
-    if(mode>1 || IsSecureEventInputEnabled() || !CassotisClientCaretRect(client,&caret)) return NO;
+    if(mode>2 || IsSecureEventInputEnabled() || !CassotisClientCaretRect(client,&caret)) return NO;
     // The IMK client call can reenter activation or input handling. Do not
     // resurrect a cancelled hint or overwrite a newer mode when it returns.
     if(revision!=_revision) return NO;
@@ -209,9 +209,9 @@ static NSArray<NSValue *> *caretAccessories(NSRect caret,pid_t clientPID) {
     CassotisInputModeView *view=(CassotisInputModeView *)self.contentView;
     auto colors=CassotisColors(CassotisCandidateTheme(NSUserDefaults.standardUserDefaults),NSApp.effectiveAppearance);
     view.fill=colors.background; view.border=colors.border;
-    view.symbol.stringValue=mode==0?@"中":@"英";
+    view.symbol.stringValue=mode==2?@"五":(mode==0?@"中":@"英");
     view.symbol.textColor=colors.text;
-    view.accessibilityValue=mode==0?@"中文":@"英文";
+    view.accessibilityValue=mode==2?@"五笔混输":(mode==0?@"中文":@"英文");
     view.symbol.accessibilityLabel=view.accessibilityValue;
     self.accessibilityLabel=[NSString stringWithFormat:@"%@，%@",CassotisShortName(),view.accessibilityValue];
     if(![self placeKeepingFrame:NSZeroRect]) return NO;

@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import shutil
 import subprocess
 import tempfile
 
@@ -28,6 +29,16 @@ def main():
     generated = args.lexicon.resolve() / 'data/generated'
     output = ROOT / 'build/dictionaries'
     output.mkdir(parents=True, exist_ok=True)
+    # The mixed scheme opens the Wubi table separately from either SQLite database.
+    wubi = generated / 'wubi86_table.txt'
+    with tempfile.TemporaryDirectory(prefix='wubi-', dir=output) as directory:
+        staged = Path(directory) / wubi.name
+        shutil.copyfile(wubi, staged)
+        with (ROOT / 'data/lexicon-inputs.json').open() as manifest:
+            expected = json.load(manifest)['source_sha256']['data/generated/wubi86_table.txt']
+        if digest(staged) != expected:
+            raise SystemExit('The Wubi 86 table differs from the selected lexicon release')
+        os.replace(staged, output / wubi.name)
     modes = [('unihan', 'base'), ('clean', 'base'),
              ('query_path_prior', 'query_path'), ('lm_transition', 'lm_transition'),
              ('transition_completion', 'transition_completion'),

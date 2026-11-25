@@ -15,8 +15,8 @@ const
     c_ipc_engine_state_fuzzy_schema_version = 2;
     c_ipc_engine_state_shortcuts_schema_version = 3;
     c_ipc_engine_state_page_size_schema_version = 4;
-    // 10 omits custom phrases; 11 includes them. Both append candidate keys.
-    c_ipc_engine_state_schema_version = 15;
+    // Even state formats omit phrases; the following odd format includes them.
+    c_ipc_engine_state_schema_version = 17;
     c_ipc_payload_max_text_bytes = 1024 * 1024;
     c_ipc_payload_max_candidates = 256;
 
@@ -982,6 +982,7 @@ begin
             schema_version := 7;
         end;
         if engine_result.candidate_vertical then schema_version := 8;
+        if engine_result.first_candidate_wubi_code <> '' then schema_version := 9;
         if (engine_result.selection_keys <> '') and (engine_result.selection_keys <> 'abcd') and
             (engine_result.selection_keys <> '123456789') then
             raise EncIpcPayloadError.Create('Invalid candidate selection keys');
@@ -1061,6 +1062,7 @@ begin
             writer.WriteString(engine_result.debug_context_text);
         end;
         if schema_version >= 8 then writer.WriteBoolean(engine_result.candidate_vertical);
+        if schema_version >= 9 then writer.WriteString(engine_result.first_candidate_wubi_code);
         Result := writer.Finish;
     finally
         writer.Free;
@@ -1090,7 +1092,7 @@ begin
     reader := TncIpcPayloadReader.Create(payload);
     try
         Result := ReadPayloadHeaderVersion(reader, version) and
-            ((version >= 1) and (version <= 8)) and
+            ((version >= 1) and (version <= 9)) and
             reader.ReadBoolean(engine_result.handled) and
             reader.ReadUInt16(reserved16) and reader.ReadByte(result_flags) and
             reader.ReadInt32(engine_result.selected_index) and
@@ -1103,7 +1105,7 @@ begin
             reader.ReadString(engine_result.completion_text) and
             reader.ReadString(engine_result.error_text) and
             reader.ReadUInt32(candidate_count);
-        if (version < 1) or (version > 8) then
+        if (version < 1) or (version > 9) then
             reader.SetError('Unsupported engine result version');
         if Result and ((reserved16 <> 0) or
             ((result_flags and not c_engine_result_known_flags) <> 0)) then
@@ -1259,6 +1261,7 @@ begin
             if not Result then reader.SetError('Invalid debug context');
         end;
         if Result and (version >= 8) then Result := reader.ReadBoolean(engine_result.candidate_vertical);
+        if Result and (version >= 9) then Result := reader.ReadString(engine_result.first_candidate_wubi_code);
         Result := Result and reader.Finish(error_text);
         if not Result then
         begin
@@ -1283,7 +1286,7 @@ begin
         if include_custom_phrases then
             WritePayloadHeaderVersion(writer, c_ipc_engine_state_schema_version)
         else
-            WritePayloadHeaderVersion(writer, 14);
+            WritePayloadHeaderVersion(writer, c_ipc_engine_state_schema_version - 1);
         writer.WriteByte(Ord(state.input_mode));
         writer.WriteByte(Ord(state.dictionary_variant));
         writer.WriteByte(Ord(state.pinyin_scheme));
@@ -1338,6 +1341,9 @@ begin
         writer.WriteUInt16(0);
         writer.WriteByte(Ord(state.select_character_keys));
         writer.WriteByte(0);
+        writer.WriteUInt16(0);
+        writer.WriteBoolean(state.wubi_mixed);
+        writer.WriteBoolean(state.wubi_context_order);
         writer.WriteUInt16(0);
         Result := writer.Finish;
     finally
@@ -1481,6 +1487,19 @@ begin
                 Result := False;
             end;
         end;
+        if Result and (version >= 16) then
+        begin
+            Result := reader.ReadBoolean(state.wubi_mixed) and
+                reader.ReadBoolean(state.wubi_context_order) and reader.ReadUInt16(reserved) and (reserved = 0);
+            if not Result then reader.SetError('Invalid Wubi input settings');
+        end;
+        if Result and (version < 16) and ((candidate_page_key_scheme > Ord(cpks_shift_tab)) or
+            (second_third_candidate_keys > Ord(stck_semicolon_quote)) or
+            (select_character_keys > Ord(sck_brackets))) then
+        begin
+            reader.SetError('Candidate keys unsupported by this state schema');
+            Result := False;
+        end;
         if Result and (input_mode > Ord(High(TncInputMode))) then
         begin
             reader.SetError('State payload contains an invalid input mode');
@@ -1582,8 +1601,8 @@ begin
                 TncOneKeyCompletionKey(one_key_completion_key);
             state.second_third_candidate_keys :=
                 TncSecondThirdCandidateKeys(second_third_candidate_keys);
-            state.select_character_keys := nc_resolve_select_character_keys(
-                TncSelectCharacterKeys(select_character_keys), state.candidate_page_key_scheme);
+            state.select_character_keys := TncSelectCharacterKeys(select_character_keys);
+            nc_normalize_input_state(state);
             state.debug_mode := (flags and c_state_flag_debug_mode) <> 0;
             if nc_candidate_page_key_conflicts_with_one_key_completion(
                 state.candidate_page_key_scheme,

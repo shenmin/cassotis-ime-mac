@@ -17,3 +17,7 @@ English recognition uses a filtered subset of Alan Beale's public-domain 12Dicts
 Free Pascal's runtime library uses its upstream license with the static-linking exception; using it does not change the application's license. Apple's system frameworks and SQLite are supplied by macOS and are not redistributed here.
 
 The benchmark text is from the developer's own novel, *Elegance in Timelessness* / 《永恒的舞动》. Benchmark corpora and their associated source documents are not distributed with the source code or installed application.
+
+## Wubi 86 code table
+
+The Wubi/Pinyin scheme uses a separate table built by Cassotis Lexicon from SUN Haifeng’s Wubi 86 tables. These tables use the BSD 3-Clause License. The application includes the notice in `Contents/Resources/licenses/Wubi-Haifeng.txt`. [Source tables](https://github.com/mike-fabian/ibus-table-chinese/tree/e0dd8bfdff9e0d2194c8e57f1ded606fb53e29c1/tables/wubi-haifeng) · [License](third_party/wubi_haifeng/LICENSE)

@@ -418,6 +418,7 @@ function TncUserDictionary.LoadEngineState(out state: TncEngineState): Boolean;
 const
     c_query = 'SELECT key, value FROM meta WHERE key IN (' +
         '''setting.pinyin_scheme'', ''setting.dictionary_variant'', ' +
+        '''setting.wubi_mixed'', ''setting.wubi_context_order'', ' +
         '''setting.full_width_mode'', ' +
         '''setting.punctuation_full_width'', ' +
         '''setting.decimal_period_after_digit'', ' +
@@ -500,6 +501,10 @@ begin
                 (setting_value >= Ord(Low(TncDictionaryVariant))) and
                 (setting_value <= Ord(High(TncDictionaryVariant))) then
                 state.dictionary_variant := TncDictionaryVariant(setting_value)
+            else if key_name = 'setting.wubi_mixed' then
+                state.wubi_mixed := setting_value <> 0
+            else if key_name = 'setting.wubi_context_order' then
+                state.wubi_context_order := setting_value <> 0
             else if key_name = 'setting.fuzzy_pinyin_enabled' then
                 state.fuzzy_pinyin_enabled := setting_value <> 0
             else if (key_name = 'setting.fuzzy_pinyin_rules') and
@@ -589,8 +594,7 @@ begin
         state.candidate_page_key_scheme :=
             nc_resolve_candidate_page_key_scheme(
             state.candidate_page_key_scheme, state.one_key_completion_key);
-        state.select_character_keys := nc_resolve_select_character_keys(
-            state.select_character_keys, state.candidate_page_key_scheme);
+        nc_normalize_input_state(state);
         nc_normalize_shortcut_config(state.shortcuts);
         FErrorMessage := '';
         Result := True;
@@ -604,7 +608,11 @@ function TncUserDictionary.SaveEngineState(
 const
     c_upsert_setting = 'INSERT INTO meta(key, value) VALUES (?1, ?2) ' +
         'ON CONFLICT(key) DO UPDATE SET value = excluded.value;';
+var
+    stored: TncEngineState;
 begin
+    stored := state;
+    nc_normalize_input_state(stored);
     if not FOpened then
     begin
         FErrorMessage := 'user dictionary is not open';
@@ -617,89 +625,90 @@ begin
     end;
     Result := ExecutePairStatement(c_upsert_setting,
         'setting.pinyin_scheme', UTF8Decode(IntToStr(
-        Ord(state.pinyin_scheme)))) and
+        Ord(stored.pinyin_scheme)))) and
+        ExecutePairStatement(c_upsert_setting, 'setting.wubi_mixed', IntToStr(Ord(stored.wubi_mixed))) and
+        ExecutePairStatement(c_upsert_setting, 'setting.wubi_context_order', IntToStr(Ord(stored.wubi_context_order))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.dictionary_variant', UTF8Decode(IntToStr(
-        Ord(state.dictionary_variant)))) and
+        Ord(stored.dictionary_variant)))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.fuzzy_pinyin_enabled', UTF8Decode(IntToStr(
-        Ord(state.fuzzy_pinyin_enabled)))) and
+        Ord(stored.fuzzy_pinyin_enabled)))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.fuzzy_pinyin_rules', UTF8Decode(IntToStr(
-        nc_fuzzy_pinyin_rules_to_mask(state.fuzzy_pinyin_rules)))) and
+        nc_fuzzy_pinyin_rules_to_mask(stored.fuzzy_pinyin_rules)))) and
         ExecutePairStatement(c_upsert_setting, 'setting.full_width_mode',
-        UTF8Decode(IntToStr(Ord(state.full_width_mode)))) and
+        UTF8Decode(IntToStr(Ord(stored.full_width_mode)))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.punctuation_full_width',
-        UTF8Decode(IntToStr(Ord(state.punctuation_full_width)))) and
+        UTF8Decode(IntToStr(Ord(stored.punctuation_full_width)))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.decimal_period_after_digit',
-        UTF8Decode(IntToStr(Ord(state.decimal_period_after_digit)))) and
+        UTF8Decode(IntToStr(Ord(stored.decimal_period_after_digit)))) and
         ExecutePairStatement(c_upsert_setting, 'setting.punctuation_ascii_symbols',
-            nc_normalize_punctuation_ascii_symbols(state.punctuation_ascii_symbols)) and
+            nc_normalize_punctuation_ascii_symbols(stored.punctuation_ascii_symbols)) and
         ExecutePairStatement(c_upsert_setting, 'setting.custom_phrases',
-            nc_custom_phrases_to_json(state.custom_phrases)) and
+            nc_custom_phrases_to_json(stored.custom_phrases)) and
         ExecutePairStatement(c_upsert_setting, 'setting.auto_english',
-            UTF8Decode(IntToStr(Ord(state.auto_english)))) and
+            UTF8Decode(IntToStr(Ord(stored.auto_english)))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.candidate_page_size', UTF8Decode(IntToStr(
-        state.candidate_page_size))) and
+        stored.candidate_page_size))) and
         ExecutePairStatement(c_upsert_setting,
-        'setting.candidate_vertical', UTF8Decode(IntToStr(Ord(state.candidate_vertical)))) and
+        'setting.candidate_vertical', UTF8Decode(IntToStr(Ord(stored.candidate_vertical)))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.candidate_expand_on_paging', UTF8Decode(IntToStr(
-        Ord(state.candidate_expand_on_paging and not state.candidate_vertical)))) and
+        Ord(stored.candidate_expand_on_paging and not stored.candidate_vertical)))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.candidate_page_key_scheme', UTF8Decode(IntToStr(
-        Ord(state.candidate_page_key_scheme)))) and
+        Ord(stored.candidate_page_key_scheme)))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.one_key_completion_key', UTF8Decode(IntToStr(
-        Ord(state.one_key_completion_key)))) and
+        Ord(stored.one_key_completion_key)))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.second_third_candidate_keys', UTF8Decode(IntToStr(
-        Ord(state.second_third_candidate_keys)))) and
+        Ord(stored.second_third_candidate_keys)))) and
         ExecutePairStatement(c_upsert_setting, 'setting.select_character_keys',
-        UTF8Decode(IntToStr(Ord(nc_resolve_select_character_keys(
-        state.select_character_keys, state.candidate_page_key_scheme))))) and
+        UTF8Decode(IntToStr(Ord(stored.select_character_keys)))) and
         ExecutePairStatement(c_upsert_setting, 'setting.debug_mode',
-        UTF8Decode(IntToStr(Ord(state.debug_mode)))) and
+        UTF8Decode(IntToStr(Ord(stored.debug_mode)))) and
         ExecutePairStatement(c_upsert_setting, 'setting.shortcut.disabled_mask',
-        UTF8Decode(IntToStr(Ord(state.shortcuts.input_mode_toggle.disabled) or
-            (Ord(state.shortcuts.punctuation_toggle.disabled) shl 1) or
-            (Ord(state.shortcuts.dictionary_variant_toggle.disabled) shl 2) or
-            (Ord(state.shortcuts.full_width_toggle.disabled) shl 3) or
-            (Ord(state.shortcuts.open_settings.disabled) shl 4)))) and
+        UTF8Decode(IntToStr(Ord(stored.shortcuts.input_mode_toggle.disabled) or
+            (Ord(stored.shortcuts.punctuation_toggle.disabled) shl 1) or
+            (Ord(stored.shortcuts.dictionary_variant_toggle.disabled) shl 2) or
+            (Ord(stored.shortcuts.full_width_toggle.disabled) shl 3) or
+            (Ord(stored.shortcuts.open_settings.disabled) shl 4)))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.shortcut.input_mode.key', UTF8Decode(IntToStr(
-        state.shortcuts.input_mode_toggle.key_code))) and
+        stored.shortcuts.input_mode_toggle.key_code))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.shortcut.input_mode.modifiers', UTF8Decode(IntToStr(
-        ShortcutModifierMask(state.shortcuts.input_mode_toggle)))) and
+        ShortcutModifierMask(stored.shortcuts.input_mode_toggle)))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.shortcut.punctuation.key', UTF8Decode(IntToStr(
-        state.shortcuts.punctuation_toggle.key_code))) and
+        stored.shortcuts.punctuation_toggle.key_code))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.shortcut.punctuation.modifiers', UTF8Decode(IntToStr(
-        ShortcutModifierMask(state.shortcuts.punctuation_toggle)))) and
+        ShortcutModifierMask(stored.shortcuts.punctuation_toggle)))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.shortcut.dictionary.key', UTF8Decode(IntToStr(
-        state.shortcuts.dictionary_variant_toggle.key_code))) and
+        stored.shortcuts.dictionary_variant_toggle.key_code))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.shortcut.dictionary.modifiers', UTF8Decode(IntToStr(
         ShortcutModifierMask(
-        state.shortcuts.dictionary_variant_toggle)))) and
+        stored.shortcuts.dictionary_variant_toggle)))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.shortcut.full_width.key', UTF8Decode(IntToStr(
-        state.shortcuts.full_width_toggle.key_code))) and
+        stored.shortcuts.full_width_toggle.key_code))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.shortcut.full_width.modifiers', UTF8Decode(IntToStr(
-        ShortcutModifierMask(state.shortcuts.full_width_toggle)))) and
+        ShortcutModifierMask(stored.shortcuts.full_width_toggle)))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.shortcut.settings.key', UTF8Decode(IntToStr(
-        state.shortcuts.open_settings.key_code))) and
+        stored.shortcuts.open_settings.key_code))) and
         ExecutePairStatement(c_upsert_setting,
         'setting.shortcut.settings.modifiers', UTF8Decode(IntToStr(
-        ShortcutModifierMask(state.shortcuts.open_settings))));
+        ShortcutModifierMask(stored.shortcuts.open_settings))));
     if Result then
         Result := FConnection.Exec('COMMIT;');
     if not Result then

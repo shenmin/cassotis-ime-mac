@@ -37,12 +37,12 @@ struct CandidatePage {
     std::vector<Candidate> candidates;
 };
 struct PreeditWarning { uint32_t start = 0, length = 0; uint8_t kind = 0; };
-enum class CompletionSource : uint8_t { None, UserExact, BaseExact, Transition, LongTransition, LongNeural, DocumentCopy, ExactTailFallback, CustomPhrase };
+enum class CompletionSource : uint8_t { None, UserExact, BaseExact, Transition, LongTransition, LongNeural, DocumentCopy, ExactTailFallback, CustomPhrase, Wubi };
 enum class LeftContextSource : uint8_t { None, Segment, Document, Session };
 struct Result {
     bool handled = false, pending = false, vertical = false;
     int32_t selected = -1, page = 0, pages = 0;
-    std::string commit, preedit, query, completion;
+    std::string commit, preedit, query, completion, firstCandidateWubiCode;
     std::string selectionKeys = "123456789", rawInput;
     bool rawSelected = false;
     CompletionSource completionSource = CompletionSource::None;
@@ -70,6 +70,7 @@ struct State {
     uint32_t fuzzy = 0;
     std::string punctuationASCII = "-#*+_=`~[]<>|@";
     bool autoEnglish = true;
+    bool wubiMixed = false, wubiContextOrder = true;
     bool includesCustomPhrases = true;
     std::vector<CustomPhrase> customPhrases;
     uint8_t pageKeys = 0, completionKey = 0, pageSize = 5;
@@ -77,6 +78,10 @@ struct State {
     uint8_t selectCharacterKeys = 0;
     Shortcut shortcuts[5];
 };
+enum class CandidateKeyPair { None, MinusEqual, Brackets, CommaPeriod, SemicolonQuote };
+CandidateKeyPair pageKeyPair(uint8_t setting);
+CandidateKeyPair secondThirdKeyPair(uint8_t setting);
+CandidateKeyPair selectCharacterKeyPair(uint8_t setting);
 std::string normalizePunctuationASCII(const std::string &value);
 Bytes encodeKey(const Key &key);
 Result decodeResult(const Bytes &data);

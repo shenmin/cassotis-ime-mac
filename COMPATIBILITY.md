@@ -1,6 +1,8 @@
 # Compatibility
 
-Version 2.9.0 (build 10) targets Apple silicon Macs running macOS 14 or later. The build environment is macOS 27.2.1 on an Apple M2 Pro with Xcode 27.2 and Free Pascal 3.2.2.
+Version 2.10.0 (build 11) targets Apple silicon Macs running macOS 14 or later. The build environment is macOS 27.2.1 on an Apple M2 Pro with Xcode 27.2 and Free Pascal 3.2.2.
+
+The v2.10.0 release passed 1,143 core tests and 400 independent model-score checks. The installed, notarized build was tested with real Wubi four-key commits, mixed Full Pinyin, configurable character-selection keys, and the existing learning database. Installation checks covered upgrade, adding the input source in System Settings, and cancellation followed by a retry. Desktop tests used a copy of the learning database. The minimum deployment target is macOS 14.
 
 The v2.9.0 release passed 1,108 core tests, 400 independently evaluated model-score cases and 172 cached/uncached comparisons. The installer was tested against the existing learning database. Desktop typing used a private copy of that database with the installed input method in native text fields, WebKit, Chrome, Electron and Terminal. The vertical candidate list was tested by moving down one word and committing it. Installer checks covered upgrading the existing installation, adding the input source through System Settings, and canceling and retrying that step. These runtime checks used macOS 27.2.1. The minimum deployment target is macOS 14.
 

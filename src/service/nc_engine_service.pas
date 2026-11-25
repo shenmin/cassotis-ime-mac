@@ -114,7 +114,7 @@ type
 implementation
 
 uses
-    nc_custom_phrases, nc_user_word_import,
+    nc_custom_phrases, nc_user_word_import, nc_wubi_table,
     SysUtils,
     nc_config,
     nc_platform_compat,
@@ -248,6 +248,8 @@ begin
     config.input_mode := state.input_mode;
     config.dictionary_variant := state.dictionary_variant;
     config.pinyin_input_scheme := state.pinyin_scheme;
+    config.wubi_mixed := state.wubi_mixed;
+    config.wubi_context_order := state.wubi_context_order;
     config.fuzzy_pinyin_enabled := state.fuzzy_pinyin_enabled;
     config.fuzzy_pinyin_rules := state.fuzzy_pinyin_rules;
     config.full_width_mode := state.full_width_mode;
@@ -264,7 +266,7 @@ begin
     config.one_key_completion_key := state.one_key_completion_key;
     config.second_third_candidate_keys := state.second_third_candidate_keys;
     config.select_character_keys := nc_resolve_select_character_keys(
-        state.select_character_keys, state.candidate_page_key_scheme);
+        state.select_character_keys, state.candidate_page_key_scheme, config.second_third_candidate_keys);
     config.debug_mode := state.debug_mode;
     config.shortcuts := state.shortcuts;
 end;
@@ -276,6 +278,8 @@ begin
     Result :=
         (old_state.dictionary_variant <> new_state.dictionary_variant) or
         (old_state.pinyin_scheme <> new_state.pinyin_scheme) or
+        (old_state.wubi_mixed <> new_state.wubi_mixed) or
+        (old_state.wubi_context_order <> new_state.wubi_context_order) or
         (old_state.fuzzy_pinyin_enabled <>
         new_state.fuzzy_pinyin_enabled) or
         (old_state.fuzzy_pinyin_rules <> new_state.fuzzy_pinyin_rules) or
@@ -335,6 +339,8 @@ begin
     next_state.input_mode := engine_config.input_mode;
     next_state.dictionary_variant := engine_config.dictionary_variant;
     next_state.pinyin_scheme := engine_config.pinyin_input_scheme;
+    next_state.wubi_mixed := engine_config.wubi_mixed;
+    next_state.wubi_context_order := engine_config.wubi_context_order;
     next_state.fuzzy_pinyin_enabled := engine_config.fuzzy_pinyin_enabled;
     next_state.fuzzy_pinyin_rules := engine_config.fuzzy_pinyin_rules;
     next_state.full_width_mode := engine_config.full_width_mode;
@@ -576,7 +582,8 @@ begin
     begin
         raw := FEngine.get_composition_text;
         spans := FInputDiagnostics.check(raw, FEngine.config.pinyin_input_scheme,
-            FEngine.quick_input_active or (FEngine.raw_input_candidate <> ''));
+            FEngine.quick_input_active or (FEngine.raw_input_candidate <> '') or
+            (FConfig.wubi_mixed and nc_is_wubi_code_text(raw)));
         offset := Length(engine_result.preedit_text) - Length(raw);
         if offset >= 0 then
         begin
@@ -612,6 +619,13 @@ begin
             NormalizeCandidates(pages[index].candidates, engine_result.query_text);
         end;
     end;
+    // The first complete reading on page zero gets the reverse-lookup hint.
+    // Other Wubi suggestions already carry their next key in the comment.
+    if FConfig.wubi_mixed and (Length(pages) > 0) and (pages[0].page_index = 0) and
+        (Length(pages[0].candidates) > 0) then
+        with pages[0].candidates[0] do
+            if (source <> cs_wubi) and (Trim(comment) = '') then
+                engine_result.first_candidate_wubi_code := FEngine.wubi_code_hint(text);
     context.PublishCandidatePages(pages);
     engine_result.candidate_pages := pages;
     engine_result.candidate_revision := context.CandidateRevision;
@@ -808,11 +822,10 @@ begin
     if state.select_character_keys <>
         nc_normalize_select_character_keys(state.select_character_keys) then
         Exit(False);
-    state.select_character_keys := nc_resolve_select_character_keys(
-        state.select_character_keys, state.candidate_page_key_scheme);
     if state.second_third_candidate_keys <>
         nc_normalize_second_third_candidate_keys(state.second_third_candidate_keys) then
         Exit(False);
+    nc_normalize_input_state(state);
     if Length(state.custom_phrases) > c_custom_phrase_max_count then Exit(False);
     for phrase in state.custom_phrases do
         if (nc_custom_phrase_key(phrase.shortcut) <> phrase.shortcut) or
@@ -833,6 +846,8 @@ begin
         (state.input_mode <> FState.input_mode) or
         (state.dictionary_variant <> FState.dictionary_variant) or
         (state.pinyin_scheme <> FState.pinyin_scheme) or
+        (state.wubi_mixed <> FState.wubi_mixed) or
+        (state.wubi_context_order <> FState.wubi_context_order) or
         (state.fuzzy_pinyin_enabled <> FState.fuzzy_pinyin_enabled) or
         (state.fuzzy_pinyin_rules <> FState.fuzzy_pinyin_rules);
     previous_state := FState;
@@ -1010,6 +1025,12 @@ begin
             Exit;
         if shortcut_action = sa_dictionary_variant_toggle then
         begin
+            if FState.wubi_mixed then
+            begin
+                Result.handled := True;
+                if ActivateContext(context) then PopulateResult(context, Result);
+                Exit;
+            end;
             next_state := FState;
             if next_state.dictionary_variant = dv_traditional then
                 next_state.dictionary_variant := dv_simplified

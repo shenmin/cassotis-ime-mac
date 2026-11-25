@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.10.0 (build 11, 2026-11-26)
+
+- Add an optional simplified-Chinese Wubi 86 scheme that also accepts Full Pinyin and initials. Include context-ranked duplicate codes, Wubi word completion, next-key hints and a reverse code on the first complete Pinyin candidate.
+- Let paging, second/third candidates and first/last characters use any available punctuation pair. The Keys page shows conflicts and explains changes to punctuation input.
+- Update both dictionaries to Cassotis Lexicon v2.10.0. Each gains 539 everyday readings. Ship SUN Haifeng’s BSD-licensed Wubi 86 code table separately and load it on demand.
+
 ## 2.9.0 (build 10)
 
 - Preserve learned words, selection counts and recent choices when upgrading the built-in dictionaries or switching between simplified and traditional Chinese.

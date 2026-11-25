@@ -84,6 +84,8 @@ BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     NSSlider *_fontSize;
     NSTextField *_fontSizeLabel, *_status, *_punctuationSymbols;
     NSButton *_fullWidth, *_punctuation, *_decimalPeriod, *_fuzzy, *_retry, *_resetAppearance, *_logging, *_debugMode, *_rememberMode, *_autoEnglish;
+    NSButton *_wubiOrder;
+    NSTextField *_candidateKeyHint;
     NSButton *_importWords, *_exportWords, *_manageWords, *_clearLearning, *_modeHint, *_candidateAtStart;
     BOOL _importing;
     NSComboBox *_fontFamily;
@@ -225,7 +227,8 @@ BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
         [_status.trailingAnchor constraintEqualToAnchor:_retry.leadingAnchor constant:-12], [_status.centerYAnchor constraintEqualToAnchor:footer.centerYAnchor],
         [document.widthAnchor constraintEqualToAnchor:_scroll.contentView.widthAnchor]]];
 
-    _scheme=[self popup:@[@"全拼",@"微软双拼",@"小鹤双拼",@"自然码双拼",@"搜狗双拼",@"紫光双拼",@"拼音加加",@"智能 ABC 双拼"] identifier:@"pinyin-scheme"];
+    _scheme=[self popup:@[@"全拼",@"微软双拼",@"小鹤双拼",@"自然码双拼",@"搜狗双拼",@"紫光双拼",@"拼音加加",@"智能 ABC 双拼",@"五笔混输（86）"] identifier:@"pinyin-scheme"];
+    _wubiOrder=[self check:@"重码按上下文排序" identifier:@"wubi-context-order"];
     _dictionary=[self popup:@[@"简体中文",@"繁體中文"] identifier:@"dictionary"];
     _fullWidth=[self check:@"使用全角输入" identifier:@"full-width"];
     _punctuation=[self check:@"使用中文标点" identifier:@"chinese-punctuation"];
@@ -244,7 +247,7 @@ BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     // engine is unavailable and is never sent over IPC.
     _rememberMode=[self check:@"按应用记住中英文状态" identifier:@"remember-input-mode"];
     _rememberMode.action=@selector(rememberModeChanged:);
-    [self section:@"常规" views:@[[self card:@[[self row:@"语言" control:_dictionary],[self row:@"拼音方案" control:_scheme],_autoEnglish,_fullWidth,_rememberMode]],
+    [self section:@"常规" views:@[[self card:@[[self row:@"语言" control:_dictionary],[self row:@"输入方案" control:_scheme],_wubiOrder,_autoEnglish,_fullWidth,_rememberMode]],
         [self card:@[_punctuation,_decimalPeriod,[self row:@"保持半角的符号" control:_punctuationSymbols],[self row:@"标点预设" control:_punctuationPreset]]],
         [self hint:@"按 Space 或数字键选词，Enter 提交拼音原文，Esc 取消输入。单独按下并释放 Shift 切换中英文；开启「按应用记住中英文状态」后，每个应用各自保留上次的选择。"]]];
 
@@ -311,17 +314,18 @@ BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
         [enabled setContentHuggingPriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
         [shortcutRows addObject:row];
     }
-    _pageKeys=[self popup:@[@"− / =",@"[ / ]",@", / .",@"Shift + Tab / Tab"] identifier:@"candidate-page-keys"];
-    _secondThirdKeys=[self popup:@[@"不使用",@"分号 / 单引号"] identifier:@"second-third-candidate-keys"];
-    _selectCharacterKeys=[self popup:@[@"不使用",@"[ 首字 / ] 末字"] identifier:@"select-character-keys"];
+    _pageKeys=[self popup:@[@"− / =",@"[ / ]",@", / .",@"Shift + Tab / Tab",@"分号 / 单引号"] identifier:@"candidate-page-keys"];
+    _secondThirdKeys=[self popup:@[@"不使用",@"分号 / 单引号",@"− / =", @"[ / ]", @", / ."] identifier:@"second-third-candidate-keys"];
+    _selectCharacterKeys=[self popup:@[@"不使用",@"[ 首字 / ] 末字",@"− / =",@", / .",@"分号 / 单引号"] identifier:@"select-character-keys"];
     _completionKey=[self popup:@[@"Tab",@"反引号 `"] identifier:@"completion-key"];
+    _candidateKeyHint=[self hint:@""];
+    _candidateKeyHint.accessibilityIdentifier=@"candidate-key-effects";
     [self section:@"按键" views:@[[self card:@[[self row:@"候选翻页" control:_pageKeys],
         [self row:@"第二、第三候选" control:_secondThirdKeys],
         [self row:@"以词定字" control:_selectCharacterKeys],
         [self row:@"一键补全" control:_completionKey]]],
-        [self hint:@"启用第二、第三候选键后，输入拼音时按 ; 选第二项，按单引号选第三项。双拼需要分号作韵母时优先完成拼音。"],
-        [self hint:@"以词定字：输入 ciku 后，按 [ 上屏“词”，按 ] 上屏“库”。使用当前选中候选的首字或末字，不记入单字学习；未输入拼音时仍输出标点。"],
-        [self hint:@"选择 [ / ] 翻页时，以词定字自动关闭。"]]];
+        [self hint:@"有候选时，二三候选键分别选择第二、第三项，以词定字键分别取当前候选的首字、末字。"],
+        _candidateKeyHint]];
     [self section:@"快捷键" views:@[[self card:shortcutRows],
         [self hint:@"点击快捷键后直接按键。按住 Ctrl、Option 或 Shift 时会立即显示；单独的 Shift 在松开时完成录制。Esc 取消。"],
         [self hint:@"中英文切换也可录制 Caps Lock。有未上屏的内容时，先提交原始字母再切换。请先在“系统设置 → 键盘 → 文字输入 → 编辑”中关闭“使用大写锁定键切换输入法”，避免切到 ABC。选择此键后，在言泉内按住 Shift 输入大写；暂不区分短按和长按。"],
@@ -505,15 +509,39 @@ BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     _fontFamily.stringValue=index==NSNotFound?@"PingFang SC":_fontFamilies[index];
     [self appearanceChanged:_fontFamily];
 }
+- (void)updateSchemeControls {
+    BOOL mixed=_scheme.indexOfSelectedItem==8;
+    if(mixed) [_dictionary selectItemAtIndex:0];
+    _dictionary.enabled=_ready && !mixed;
+    _wubiOrder.hidden=!mixed;
+    _wubiOrder.enabled=_ready && mixed;
+}
 - (void)updateCharacterKeyControls {
-    BOOL available=_ready && _pageKeys.indexOfSelectedItem!=1;
-    if(_pageKeys.indexOfSelectedItem==1) [_selectCharacterKeys selectItemAtIndex:0];
-    _selectCharacterKeys.enabled=available;
+    using cassotis::CandidateKeyPair;
+    auto page=cassotis::pageKeyPair((uint8_t)_pageKeys.indexOfSelectedItem);
+    for(NSUInteger i=1;i<(NSUInteger)_secondThirdKeys.numberOfItems;++i)
+        [_secondThirdKeys itemAtIndex:i].hidden=cassotis::secondThirdKeyPair((uint8_t)i)==page;
+    if(_secondThirdKeys.selectedItem.hidden) [_secondThirdKeys selectItemAtIndex:0];
+    auto second=cassotis::secondThirdKeyPair((uint8_t)_secondThirdKeys.indexOfSelectedItem);
+    for(NSUInteger i=1;i<(NSUInteger)_selectCharacterKeys.numberOfItems;++i) {
+        auto pair=cassotis::selectCharacterKeyPair((uint8_t)i);
+        [_selectCharacterKeys itemAtIndex:i].hidden=pair==page || pair==second;
+    }
+    if(_selectCharacterKeys.selectedItem.hidden) [_selectCharacterKeys selectItemAtIndex:0];
+    auto character=cassotis::selectCharacterKeyPair((uint8_t)_selectCharacterKeys.indexOfSelectedItem);
+    NSMutableArray<NSString *> *notes=[NSMutableArray array];
+    if(page==CandidateKeyPair::CommaPeriod || second==CandidateKeyPair::CommaPeriod || character==CandidateKeyPair::CommaPeriod)
+        [notes addObject:@"输入拼音时，逗号和句号不再随首选上屏标点。"];
+    if(page==CandidateKeyPair::SemicolonQuote || second==CandidateKeyPair::SemicolonQuote || character==CandidateKeyPair::SemicolonQuote)
+        [notes addObject:@"单引号不再分隔音节。微软、搜狗、紫光双拼中，声母后的分号仍输入韵母 ing。"];
+    _candidateKeyHint.stringValue=[notes componentsJoinedByString:@" "];
+    _candidateKeyHint.hidden=notes.count==0;
 }
 - (void)changed:(id)sender {
     (void)sender; if(_loading || !_ready || _saving) return;
     for(NSButton *rule in _rules) rule.enabled=_fuzzy.state==NSControlStateValueOn;
     _decimalPeriod.enabled=_punctuation.state==NSControlStateValueOn;
+    [self updateSchemeControls];
     [self updateCharacterKeyControls];
     [self updatePunctuationControls];
     _saving=YES;
@@ -600,7 +628,7 @@ BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
         [_customPhrases setPhrases:_state.customPhrases];
         _autoEnglish.state=_state.autoEnglish?NSControlStateValueOn:NSControlStateValueOff;
         _punctuationSymbols.stringValue=[NSString stringWithUTF8String:_state.punctuationASCII.c_str()];
-        [_scheme selectItemAtIndex:_state.scheme]; [_dictionary selectItemAtIndex:_state.dictionary];
+        [_scheme selectItemAtIndex:_state.wubiMixed?8:_state.scheme]; _wubiOrder.state=_state.wubiContextOrder; [_dictionary selectItemAtIndex:_state.dictionary];
         [_pageKeys selectItemAtIndex:_state.pageKeys]; [_completionKey selectItemAtIndex:_state.completionKey];
         [_secondThirdKeys selectItemAtIndex:_state.secondThirdKeys];
         [_selectCharacterKeys selectItemAtIndex:_state.selectCharacterKeys];
@@ -629,6 +657,7 @@ BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     for(NSControl *control in @[_scheme,_dictionary,_pageKeys,_completionKey,_secondThirdKeys,_selectCharacterKeys,_pageSize,_theme,_fontSize,
         _fontFamily,_fullWidth,_punctuation,_fuzzy,_resetAppearance,_candidateLayout,_autoEnglish,_debugMode]) control.enabled=_ready;
     _decimalPeriod.enabled=_ready && _punctuation.state!=0;
+    [self updateSchemeControls];
     [self updateCharacterKeyControls];
     [self updatePunctuationControls];
     for(NSButton *control in _shortcutEnabled) control.enabled=_ready;
@@ -663,10 +692,11 @@ BOOL CassotisSettingsFieldKey(NSControl *control,NSEvent *event) {
     if(!_ready) { _status.stringValue=@"引擎暂不可用，请重新打开设置后重试。"; return NO; }
     auto state=_state;
     state.autoEnglish=_autoEnglish.state!=0;
-    state.scheme=(uint8_t)_scheme.indexOfSelectedItem; state.dictionary=(uint8_t)_dictionary.indexOfSelectedItem;
+    state.wubiMixed=_scheme.indexOfSelectedItem==8; state.wubiContextOrder=_wubiOrder.state!=0;
+    state.scheme=state.wubiMixed?0:(uint8_t)_scheme.indexOfSelectedItem; state.dictionary=state.wubiMixed?0:(uint8_t)_dictionary.indexOfSelectedItem;
     state.pageKeys=(uint8_t)_pageKeys.indexOfSelectedItem; state.completionKey=(uint8_t)_completionKey.indexOfSelectedItem;
     state.secondThirdKeys=(uint8_t)_secondThirdKeys.indexOfSelectedItem;
-    state.selectCharacterKeys=state.pageKeys==1?0:(uint8_t)_selectCharacterKeys.indexOfSelectedItem;
+    state.selectCharacterKeys=(uint8_t)_selectCharacterKeys.indexOfSelectedItem;
     state.pageSize=(uint8_t)(_pageSize.indexOfSelectedItem+3);
     state.flags=(_fullWidth.state?1:0)|(_punctuation.state?2:0)|(_fuzzy.state?4:0)|(_debugMode.state?8:0)|(_candidateLayout.indexOfSelectedItem==1?16:0)|(_candidateLayout.indexOfSelectedItem==2?64:0)|(_decimalPeriod.state?32:0); state.fuzzy=0;
     for(NSUInteger i=0;i<_rules.count;++i) if(_rules[i].state) state.fuzzy|=1<<i;
